@@ -1,0 +1,634 @@
+:root {
+  --bg: #F5F8F4;
+  --surface: #FFFFFF;
+  --surface-sunken: #EEF3EC;
+  --text: #182018;
+  --text-muted: #5B6A5D;
+  --border: #DCE5DB;
+  --border-strong: #C3D0C1;
+  --accent: #1E7A4C;
+  --accent-ink: #0F4A2C;
+  --accent-soft: #E3F1E7;
+  --danger: #B5502B;
+  --danger-soft: #F6E6DE;
+  --focus: #1E7A4C;
+  --shadow: 0 1px 2px rgba(24,32,24,0.04), 0 8px 24px -12px rgba(24,32,24,0.18);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #10140F;
+    --surface: #171D16;
+    --surface-sunken: #1E251C;
+    --text: #ECF1EA;
+    --text-muted: #98A899;
+    --border: #2A342A;
+    --border-strong: #3A4838;
+    --accent: #4FBE85;
+    --accent-ink: #C9EFD8;
+    --accent-soft: #1D3327;
+    --danger: #E0895F;
+    --danger-soft: #3A2A21;
+    --focus: #4FBE85;
+    --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 12px 32px -14px rgba(0,0,0,0.6);
+  }
+}
+
+:root[data-theme="dark"] {
+  --bg: #10140F;
+  --surface: #171D16;
+  --surface-sunken: #1E251C;
+  --text: #ECF1EA;
+  --text-muted: #98A899;
+  --border: #2A342A;
+  --border-strong: #3A4838;
+  --accent: #4FBE85;
+  --accent-ink: #C9EFD8;
+  --accent-soft: #1D3327;
+  --danger: #E0895F;
+  --danger-soft: #3A2A21;
+  --focus: #4FBE85;
+  --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 12px 32px -14px rgba(0,0,0,0.6);
+}
+
+* { box-sizing: border-box; }
+
+/* Several elements below are toggled with the plain `hidden` attribute
+   but also have a class that sets `display` (e.g. `.history-summary`,
+   `.insight`). An author stylesheet rule normally beats the browser's
+   own default `[hidden] { display: none }`, so without this, `hidden`
+   would silently stop working on any element whose class sets `display`.
+   This forces `hidden` to always win, regardless of what else applies. */
+[hidden] { display: none !important; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: "Work Sans", ui-sans-serif, system-ui, sans-serif;
+  min-height: 100%;
+}
+
+.page {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 40px 20px 64px;
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+.hero {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.hero-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.theme-toggle {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  line-height: 1;
+  background: var(--surface-sunken);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.theme-toggle:hover { border-color: var(--border-strong); }
+
+.eyebrow {
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+h1 {
+  font-family: "Fraunces", Georgia, serif;
+  font-weight: 600;
+  font-size: clamp(28px, 6vw, 38px);
+  line-height: 1.08;
+  margin: 0;
+  text-wrap: balance;
+  letter-spacing: -0.01em;
+}
+
+.hero p {
+  margin: 0;
+  max-width: 52ch;
+  color: var(--text-muted);
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  box-shadow: var(--shadow);
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+fieldset {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+legend {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  padding: 0;
+  margin-bottom: 2px;
+}
+
+.platform-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.platform-pill {
+  font-family: "Work Sans", sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  background: var(--surface-sunken);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 7px 14px;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.platform-pill:hover { border-color: var(--border-strong); }
+
+button:focus-visible,
+input:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.platform-pill[aria-pressed="true"] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--bg);
+}
+
+.field-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.field label {
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+
+.field .input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.field .input-wrap span {
+  position: absolute;
+  left: 12px;
+  color: var(--text-muted);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 14px;
+  pointer-events: none;
+}
+
+.field input {
+  width: 100%;
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+  font-size: 15px;
+  color: var(--text);
+  background: var(--surface-sunken);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px 10px 26px;
+}
+
+.platform-note {
+  font-size: 12.5px;
+  color: var(--text-muted);
+  line-height: 1.5;
+  border-top: 1px dashed var(--border);
+  padding-top: 14px;
+}
+
+.receipt {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  box-shadow: var(--shadow);
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+}
+
+.receipt-title {
+  font-family: "Work Sans", sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  margin-bottom: 16px;
+}
+
+.r-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  padding: 9px 0;
+  border-top: 1px dashed var(--border);
+  font-size: 14px;
+}
+
+.r-row:first-of-type { border-top: none; }
+
+.r-row .label { color: var(--text-muted); }
+.r-row .amount { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.r-row.negative .amount { color: var(--danger); }
+.r-row.total .label,
+.r-row.total .amount {
+  color: var(--text);
+  font-weight: 500;
+}
+
+.r-row.subtotal {
+  border-top: 1px solid var(--border-strong);
+  margin-top: 4px;
+}
+
+.keep {
+  margin-top: 14px;
+  border-top: 2px solid var(--text);
+  padding-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.keep .label {
+  font-family: "Work Sans", sans-serif;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.keep .amount {
+  font-family: "Fraunces", Georgia, serif;
+  font-weight: 600;
+  font-size: 40px;
+  color: var(--accent-ink);
+  line-height: 1.05;
+  font-variant-numeric: tabular-nums;
+}
+
+.keep .rate {
+  font-family: "Work Sans", sans-serif;
+  font-size: 13.5px;
+  color: var(--text-muted);
+}
+
+.keep .rate strong {
+  color: var(--accent-ink);
+  font-weight: 600;
+}
+
+/* A loss flips the headline number from "success" green to "danger" —
+   the color of the figure should never contradict what it says. */
+.keep.is-loss .amount { color: var(--danger); }
+.keep.is-loss .rate strong { color: var(--danger); }
+
+.insight {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text);
+  background: var(--danger-soft);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin: 0;
+}
+
+/* Scoped to the calculator card specifically (not .field input in
+   general) — a typed negative number should visibly flag as off, but
+   the Account card's empty *required* email/password fields are also
+   ":invalid" before anyone's touched them, and a red border on first
+   load would look like an error before the user did anything wrong. */
+#calculatorCard input:invalid {
+  border-color: var(--danger);
+}
+
+.disclaimer {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-muted);
+  background: var(--surface-sunken);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 14px;
+}
+
+.disclaimer strong { color: var(--text); }
+
+.save-btn {
+  margin-top: 18px;
+  align-self: flex-start;
+  font-family: "Work Sans", sans-serif;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--bg);
+  background: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: 10px;
+  padding: 10px 16px;
+  cursor: pointer;
+  transition: opacity 0.15s ease, transform 0.05s ease;
+}
+
+.save-btn:hover { opacity: 0.9; }
+.save-btn:active { transform: scale(0.98); }
+.save-btn:disabled { opacity: 0.65; cursor: default; }
+
+.history-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.history-actions {
+  display: flex;
+  gap: 16px;
+}
+
+.text-btn {
+  font-family: "Work Sans", sans-serif;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* Plain .text-btn is used for several non-destructive actions now
+   (Export CSV, create an account, forgot password, log out) — red only
+   makes sense for the one that actually deletes something. */
+.text-btn:hover { color: var(--text); }
+.text-btn:disabled { opacity: 0.5; cursor: default; text-decoration: none; }
+.text-btn-danger:hover { color: var(--danger); }
+
+.history-summary {
+  display: flex;
+  gap: 28px;
+  padding-bottom: 14px;
+  border-bottom: 1px dashed var(--border);
+}
+
+.history-summary .stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.history-summary .stat-label {
+  font-family: "Work Sans", sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+
+.history-summary .stat-value {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 17px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+
+.history-empty {
+  font-size: 13.5px;
+  color: var(--text-muted);
+  margin: 0;
+  line-height: 1.5;
+}
+
+.history-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.history-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 0;
+  border-top: 1px dashed var(--border);
+}
+
+.history-row:first-child { border-top: none; }
+
+.history-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.history-platform {
+  font-family: "Work Sans", sans-serif;
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+.history-date {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+
+.history-amounts {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.history-price { color: var(--text-muted); }
+.history-keep { font-weight: 600; color: var(--accent-ink); }
+
+.history-delete {
+  flex-shrink: 0;
+  font-size: 18px;
+  line-height: 1;
+  color: var(--text-muted);
+  background: none;
+  border: 0;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+}
+
+.history-delete:hover { color: var(--danger); background: var(--danger-soft); }
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.auth-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.auth-message {
+  font-size: 12.5px;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.pro-status {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 14px 0;
+  padding: 14px;
+  background: var(--surface-sunken);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.plan-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.plan-badge {
+  flex-shrink: 0;
+  font-family: "Work Sans", sans-serif;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--border-strong);
+  color: var(--text-muted);
+}
+
+.plan-badge.is-pro {
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+}
+
+a.save-btn {
+  display: inline-block;
+  align-self: flex-start;
+  text-decoration: none;
+}
+
+code {
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 0.92em;
+  background: var(--surface-sunken);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 1px 5px;
+}
+
+@media (max-width: 420px) {
+  .field-grid { grid-template-columns: 1fr; }
+  .history-row { flex-wrap: wrap; }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .keep .amount { transition: opacity 0.15s ease; }
+}
+
+.print-only { display: none; }
+
+/* A printed (or "print to PDF") copy is meant to be a clean tax record,
+   not a screenshot of the app: the interactive stuff (inputs, buttons,
+   the account/history cards) is stripped out, leaving just the receipt
+   — which already restates every input as its own line item, so nothing
+   is actually lost by hiding the form it came from. */
+@media print {
+  body { background: #fff; color: #000; }
+
+  .theme-toggle,
+  #calculatorCard,
+  .save-btn,
+  #authCard,
+  #historyCard {
+    display: none;
+  }
+
+  .receipt {
+    box-shadow: none;
+    border: 1px solid #999;
+  }
+
+  .print-only {
+    display: block;
+    margin-top: 14px;
+    font-size: 11px;
+    color: #555;
+  }
+}

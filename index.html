@@ -1,0 +1,160 @@
+<meta charset="UTF-8">
+<title>The Real Cut</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,500;0,600;1,500&family=Work+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="style.css">
+<script>
+  // Runs immediately, before the page paints, so there's no flash of the
+  // wrong theme: if you've picked light/dark before, apply it right away
+  // instead of waiting for app.js to load at the bottom of the page.
+  (function () {
+    try {
+      var saved = localStorage.getItem("resellerTracker.theme");
+      if (saved === "light" || saved === "dark") {
+        document.documentElement.setAttribute("data-theme", saved);
+      }
+    } catch (err) {
+      // Some locked-down browser contexts throw on localStorage access —
+      // fail silently and just fall back to the OS-level light/dark setting.
+    }
+  })();
+</script>
+
+<main class="page">
+  <div class="hero">
+    <div class="hero-top">
+      <span class="eyebrow">Marketplace fee reality check</span>
+      <button class="theme-toggle" id="themeToggle" type="button" aria-label="Switch theme">🌙</button>
+    </div>
+    <h1>You made a sale. Here's what you actually keep.</h1>
+    <p>Pick your platform, drop in the numbers, and see the real payout after fees, shipping, and what the item cost you &mdash; not the number the app shows you first.</p>
+  </div>
+
+  <div class="card" id="calculatorCard">
+    <fieldset>
+      <legend>Platform</legend>
+      <div class="platform-row" id="platformRow" role="group" aria-label="Select platform"></div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Sale details</legend>
+      <div class="field-grid">
+        <div class="field">
+          <label for="price">Sale price</label>
+          <div class="input-wrap"><span>$</span><input id="price" type="number" inputmode="decimal" min="0" step="0.01" value="42.00"></div>
+        </div>
+        <div class="field">
+          <label for="shipCharged">Shipping charged to buyer</label>
+          <div class="input-wrap"><span>$</span><input id="shipCharged" type="number" inputmode="decimal" min="0" step="0.01" value="5.50"></div>
+        </div>
+        <div class="field">
+          <label for="shipCost">Your shipping cost</label>
+          <div class="input-wrap"><span>$</span><input id="shipCost" type="number" inputmode="decimal" min="0" step="0.01" value="6.20"></div>
+        </div>
+        <div class="field">
+          <label for="itemCost">What the item cost you</label>
+          <div class="input-wrap"><span>$</span><input id="itemCost" type="number" inputmode="decimal" min="0" step="0.01" value="8.00"></div>
+        </div>
+      </div>
+    </fieldset>
+
+    <p class="platform-note" id="platformNote"></p>
+    <p class="insight" id="shippingInsight" hidden><span>&#9888;&#65039;</span><span id="shippingInsightText"></span></p>
+  </div>
+
+  <div class="receipt" id="receipt">
+    <div class="receipt-title" id="receiptTitle">Payout breakdown</div>
+    <div class="r-row"><span class="label">Sale price</span><span class="amount" id="rPrice">$0.00</span></div>
+    <div class="r-row"><span class="label">+ Shipping charged to buyer</span><span class="amount" id="rShipCharged">$0.00</span></div>
+    <div class="r-row subtotal total"><span class="label">Total received</span><span class="amount" id="rTotal">$0.00</span></div>
+    <div class="r-row negative"><span class="label">&minus; Marketplace &amp; payment fees</span><span class="amount" id="rFee">$0.00</span></div>
+    <div class="r-row negative"><span class="label">&minus; Your shipping cost</span><span class="amount" id="rShipCost">$0.00</span></div>
+    <div class="r-row negative"><span class="label">&minus; What the item cost you</span><span class="amount" id="rItemCost">$0.00</span></div>
+    <div class="keep" id="keepBlock">
+      <span class="label">You keep</span>
+      <span class="amount" id="rKeep">$0.00</span>
+      <span class="rate" id="rRate"></span>
+    </div>
+    <button class="save-btn" id="saveSaleBtn" type="button">Save this sale to history</button>
+    <p class="print-only" id="printStamp"></p>
+  </div>
+
+  <p class="disclaimer"><span>&#9888;&#65039;</span><span><strong>Fee estimates, not gospel.</strong> Marketplace fees vary by category, promotions, and seller level, and platforms change their rates often. Check the platform's current seller fee page before using this for real bookkeeping.</span></p>
+
+  <div class="card" id="authCard">
+    <div class="history-head">
+      <span class="receipt-title" style="margin-bottom:0;">Account</span>
+    </div>
+
+    <p class="history-empty" id="authNotConfigured" hidden>
+      Cloud sync isn't set up yet. Fill in <code>supabase-config.js</code> with your Supabase
+      project's URL and Publishable key (see README) to enable accounts that sync across devices.
+      Until then, your sales history below is saved to this browser only.
+    </p>
+
+    <div id="authSignedOut">
+      <form id="authForm" class="auth-form">
+        <div class="field-grid">
+          <div class="field">
+            <label for="authEmail">Email</label>
+            <input id="authEmail" type="email" required placeholder="you@example.com">
+          </div>
+          <div class="field">
+            <label for="authPassword">Password</label>
+            <input id="authPassword" type="password" required minlength="6" placeholder="At least 6 characters">
+          </div>
+        </div>
+        <div class="auth-actions">
+          <button type="submit" class="save-btn" style="margin-top:0;">Log in</button>
+          <button type="button" class="text-btn" id="authSignUpBtn">or create an account</button>
+          <button type="button" class="text-btn" id="authForgotBtn">forgot password?</button>
+        </div>
+        <p class="auth-message" id="authMessage" role="status" hidden></p>
+      </form>
+    </div>
+
+    <div id="authSignedIn" hidden>
+      <p class="history-empty">Signed in as <strong id="authEmailLabel"></strong> &mdash; your sales sync to your account instead of just this browser.</p>
+
+      <div class="pro-status">
+        <div class="plan-row">
+          <span class="plan-badge" id="planBadge">Free plan</span>
+          <span class="history-empty" id="planStatusText">Pro unlocks automatic marketplace imports once Milestone 4 ships.</span>
+        </div>
+        <a class="save-btn" id="proUpgradeBtn" href="#" target="_blank" rel="noopener" hidden>Upgrade to Pro</a>
+        <p class="history-empty" id="proNotConfigured" hidden>
+          Pro payments aren't set up yet. Fill in <code>stripe-config.js</code> with your
+          Payment Link (see README) to enable upgrades.
+        </p>
+      </div>
+
+      <button type="button" class="text-btn" id="authSignOutBtn">Log out</button>
+    </div>
+  </div>
+
+  <div class="card" id="historyCard">
+    <div class="history-head">
+      <span class="receipt-title" style="margin-bottom:0;">Sales history</span>
+      <div class="history-actions">
+        <button class="text-btn" id="exportCsvBtn" type="button">Export CSV</button>
+        <button class="text-btn text-btn-danger" id="clearHistoryBtn" type="button">Clear all</button>
+      </div>
+    </div>
+    <div class="history-summary" id="historySummary" hidden>
+      <div class="stat">
+        <span class="stat-label">Sales saved</span>
+        <span class="stat-value" id="historyCount">0</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">Total kept</span>
+        <span class="stat-value" id="historyTotalKeep">$0.00</span>
+      </div>
+    </div>
+    <p class="history-empty" id="historyEmpty">No sales saved yet &mdash; calculate one above, then hit &ldquo;Save this sale to history.&rdquo;</p>
+    <div class="history-list" id="historyList"></div>
+  </div>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="supabase-config.js"></script>
+<script src="stripe-config.js"></script>
+<script src="app.js"></script>

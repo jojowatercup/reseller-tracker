@@ -1,0 +1,7 @@
+# Python bytecode cache, created automatically when tests/test_app.py runs
+__pycache__/
+*.pyc
+
+# macOS Finder metadata
+.DS_Store
+supabase/.temp/

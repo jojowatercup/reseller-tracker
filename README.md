@@ -1,0 +1,326 @@
+# Reseller Profit & Tax Tracker
+
+A tool for part-time resellers/creators (Etsy, Depop, Poshmark, eBay, Mercari, TikTok Shop)
+and small businesses running their own Shopify store, to see their real profit after platform
+fees, shipping, and item cost — and eventually track it automatically across platforms for
+tax season.
+
+This project is being built one small milestone at a time, each one teaching a new concept
+on top of the last. No prior coding experience assumed.
+
+## How to view it right now
+
+Open `index.html` by double-clicking it, or dragging it into any web browser. No install,
+no build step needed. As of Milestone 3 it's a few files instead of one (see below), but
+they still just sit on disk — no server required to try the calculator and local history.
+
+If your IDE has a "Live Server" / "Preview" feature (VS Code's Live Server extension, for
+example), you can use that instead to auto-refresh while editing.
+
+**To get accounts + cloud sync working (Milestone 3), do this once:**
+
+1. Go to [supabase.com](https://supabase.com) and create a free account, then click
+   "New Project." Pick any name/region and set a database password (Supabase asks for one;
+   this app doesn't need you to remember it).
+2. Once the project finishes setting up (~2 minutes), open **SQL Editor** in the left sidebar
+   → **New query** → paste in the entire contents of this project's `schema.sql` → **Run**.
+   That creates the `sales` table and locks it so each signed-in seller only ever sees their
+   own rows.
+3. Go to **Authentication → Providers → Email** and turn **off** "Confirm email." (We're not
+   deployed anywhere yet, so there's no working link-back address for a confirmation email to
+   send you to — we'll turn this back on at Milestone 6.)
+4. Go to **Settings → API Keys** (Supabase renamed things in 2025/2026 — this used to be
+   called just "API"). Copy the **Project URL** and the **Publishable key** (formerly called
+   the "anon" key, looks like `sb_publishable_...`) — not the **Secret key** (formerly
+   "service_role"), that one must never be used in this app.
+5. Open `supabase-config.js` in this project and paste those two values in, replacing the
+   placeholder text.
+6. Reload `index.html`. The Account card should now show a login form instead of the
+   "cloud sync isn't set up yet" message.
+
+## Roadmap
+
+1. ✅ **Fee calculator** (`index.html`) — a single HTML/CSS/JS page. Pick a platform, enter
+   sale numbers, see what you actually keep. Covers Etsy, eBay, Poshmark, Depop, Mercari,
+   TikTok Shop, and Shopify (a self-run store, so its "fee" is just payment processing —
+   no marketplace commission). No accounts, no server, no database.
+   Doubles as a free marketing tool to attract early users.
+2. ✅ **Save your sales history** — remember past calculations between visits using the
+   browser's own storage (`localStorage`). Still zero setup. Data lives only in the browser
+   you saved it in — it won't follow you to another device (that's what Milestone 3's
+   real database is for).
+3. ✅ **Real accounts + a real database** — move off a single file, set up a proper project,
+   add user sign-in and a database (using Supabase). Verified end-to-end against a real
+   Supabase project: sign up, log in, session persists across reloads, saving/deleting/
+   clearing sales all hit the real `sales` table and are private per-account via RLS.
+4. ⬜ **Connect marketplaces for real** — pull a seller's actual orders automatically instead
+   of typing numbers by hand, feeding straight into the same sales history list.
+   Requires Milestone 3 first: a real API connection means OAuth tokens/secrets, which must
+   live on a server, never in browser-side code anyone can read via dev tools.
+   Availability varies a lot by platform, so the order will likely be:
+     - **Etsy** and **eBay** first — both have open, self-serve seller APIs.
+     - **TikTok Shop** and **Mercari** — partner APIs exist but require approval; may not be
+       reachable for a small/solo seller account.
+     - **Depop** and **Poshmark** — no public seller API as of this writing. Likely fallback:
+       let sellers upload the CSV order-export these platforms already offer, so the list
+       still fills in automatically, just from a file instead of a live connection.
+     - **Shopify** — open, self-serve Admin API; a store owner can generate their own access
+       token with no approval wait for a single store. To connect *many* different sellers'
+       stores (what this app needs), we'd register as a free Shopify Partner and use their
+       OAuth flow — same backend requirement as everything else here, but no gatekeeping.
+5. ✅ **Add payments** — Stripe, so people can subscribe and pay for the Pro version. Pro
+   unlocks Milestone 4's automatic marketplace imports once that exists; free stays exactly
+   as-is otherwise. Verified end-to-end for real: a real Stripe test-mode checkout (test
+   card, real webhook delivery) correctly flipped a test account to Pro in the database,
+   and the app correctly showed it.
+6. ⬜ **Deploy it live** — a permanent URL anyone can visit, not tied to any one session.
+
+## Project structure so far
+
+```
+reseller-tracker/
+├── README.md                          ← this file
+├── index.html                         ← page structure/markup only now
+├── style.css                          ← all the styling
+├── app.js                             ← calculator, history, account/cloud-sync, Pro status
+├── supabase-config.js                 ← your Supabase project's URL + anon key go here
+├── stripe-config.js                   ← your Stripe Payment Link goes here
+├── schema.sql                         ← run once: creates the "sales" table
+├── schema-subscriptions.sql           ← run once: creates the "subscriptions" table
+├── supabase/functions/stripe-webhook  ← the webhook function (deployed via Supabase CLI)
+└── tests/                             ← automated tests — see tests/README.md
+```
+
+As milestones are added, this file will note what's new and where to find it.
+
+## What's new in Milestone 2
+
+- A **"Save this sale to history"** button under the receipt stores the current calculation.
+- A **Sales history** card lists everything you've saved (newest first), with a running count
+  and total kept, plus a delete button per entry and a "Clear all."
+- Saved data is stored in your browser's `localStorage` under the key `resellerTracker.history`,
+  as JSON. It survives closing the tab and restarting your browser, but it's tied to this one
+  browser on this one device — clearing your browser's site data would erase it too.
+- Added **Shopify** as a platform option, since it's a common way small resale businesses sell
+  directly. Its fee model is different from the marketplaces (no commission, just payment
+  processing) — see the roadmap note under Milestone 4 for why its future API access is
+  actually easier than most of the marketplaces here.
+
+## What's new in Milestone 3
+
+- Split the single `index.html` into `index.html` (markup), `style.css`, and `app.js` — a
+  "proper project" with each kind of code in its own file, which is how most real websites
+  are organized.
+- Added **Supabase**: a hosted Postgres database + login system that a webpage can talk to
+  directly over the internet via a small JavaScript library (loaded from a CDN, no install).
+- Added an **Account** card: sign up / log in / log out with email + password.
+- **Signed out:** sales history still saves to this browser's `localStorage`, exactly like
+  Milestone 2 — nothing about the free, no-signup calculator changed.
+- **Signed in:** sales history reads from and writes to your own private rows in the
+  `sales` table instead, which means it now follows you to any browser or device you log in
+  from — the thing `localStorage` could never do.
+- **Row Level Security (RLS)**, set up in `schema.sql`, is the database rule that actually
+  keeps one seller's sales private from another. It's enforced by the database itself, not
+  by our JavaScript — so even a bug in `app.js` couldn't leak someone else's data.
+- The **Publishable key** (Supabase's current name for what used to be called the "anon" key)
+  in `supabase-config.js` is safe to leave visible in browser code — it can only do what the
+  RLS rules allow. The separate **Secret key** (formerly "service_role") bypasses RLS entirely
+  and must never appear in this app.
+- Until you fill in `supabase-config.js` with a real project (see the setup steps above), the
+  Account card shows a "cloud sync isn't set up yet" note and the app behaves exactly like
+  Milestone 2.
+
+## Between Milestone 3 and Milestone 4
+
+Everything below happened in one overnight session of polish, bug-hunting, and prep — while
+the fee calculator, local/cloud history, and accounts from Milestones 1–3 stayed unchanged.
+Every item was tested (`python3 tests/test_app.py`, currently 10/10) before moving to the next.
+
+### New features
+
+- **Export CSV** — a button in the Sales History card that downloads everything you've saved
+  (local or cloud, whichever's active) as a spreadsheet-ready `.csv` file, oldest sale first
+  like a real ledger, for tax season or handing to a bookkeeper. Built entirely in the
+  browser via a `Blob` — no server involved.
+- **Manual light/dark toggle** (the moon/sun button, top right) — the CSS already auto-matched
+  your OS setting since Milestone 1; this adds an explicit override remembered in
+  `localStorage`, applied by a tiny inline script before the page paints so there's no flash
+  of the wrong theme on reload.
+- **Shipping-loss insight** — a small warning when your shipping cost exceeds what you
+  charged the buyer for shipping, with the exact gap.
+- **Loss coloring** — "You keep" turns red instead of staying green when a sale is a net loss.
+- **Print-friendly view** — printing the page (or "Print to PDF") shows a clean, self-contained
+  receipt instead of the whole interactive app; the calculator inputs, account card, and
+  history list all hide, since the receipt already restates every number as its own line. This
+  also exposed a small gap: the receipt never said which platform it was for, so its title now
+  reads e.g. "Payout breakdown — Etsy" on screen too.
+- **"Forgot password?"** in the Account card — emails a reset link via Supabase, tested
+  against the real project and confirmed working. What's *not* built: the landing page that
+  link opens, where you'd type a new password. That needs a stable `https` address to
+  redirect to, which doesn't exist until Milestone 6 (deploy) — left as a documented gap
+  rather than untestable guesswork.
+
+### Bugs found and fixed (via testing and a couple of code read-throughs)
+
+- **A `hidden`-attribute bug from Milestone 2**: several elements (like the sales-history stat
+  row) were toggled with the plain `hidden` attribute, but their CSS class also set `display`,
+  which silently overrode it and kept them visible. Fixed with one defensive rule:
+  `[hidden] { display: none !important; }`.
+- **A false "Saved ✓"**: a failed cloud save used to still flash success — the button always
+  showed "Saved ✓" regardless of whether the save actually worked. It now only shows success
+  when the save truly succeeded, and re-enables immediately (instead of staying stuck) if it
+  didn't.
+- **A missing sign-up message**: signing up with no error but also no session (what happens
+  if a Supabase project has "Confirm email" turned on) used to leave "Creating account…"
+  stuck with no explanation. It now says to check your email. Doesn't change this project's
+  behavior today (confirmation is off), but will matter once Milestone 6 turns it back on.
+- **A validation-styling regression I introduced, then caught**: the red "invalid" border
+  added for negative calculator numbers was scoped too broadly (`.field input:invalid`) and
+  was also making the Account card's empty, merely-not-filled-in-yet email/password fields
+  look like an error the instant the page loaded. Rescoped to the calculator's own fields
+  (`#calculatorCard input:invalid`) only.
+- **A hover-color mismatch found during a `style.css` read-through**: `.text-btn:hover` turned
+  red for every text-button (Export CSV, create an account, forgot password, log out), which
+  made sense back when that class was only ever "Clear all" but not anymore. Only the
+  genuinely destructive one (`.text-btn-danger`, i.e. Clear all) still hovers red; the rest
+  hover to a neutral, stronger text color.
+
+### Test suite and robustness
+
+- Added a real **automated test suite** (`tests/`) — see `tests/README.md`. Run it with
+  `python3 tests/test_app.py`. Now covers: calculator math for all 7 platforms (including
+  both sides of Poshmark's $15 flat-fee-vs-percentage branch), input validation, local
+  history, CSV export, the print view, and the two bug fixes above as regression tests.
+- Added a `Skipped` outcome to the test runner (distinct from pass/fail) for the one test
+  that only makes sense while `supabase-config.js` holds real credentials, so clearing it back
+  to placeholders (or a fresh clone that hasn't set one up yet) shows as skipped, not failed.
+- Hardened navigation against a flaky-network false failure: tests use
+  `wait_until="domcontentloaded"` instead of the default `"load"`, which was needlessly
+  waiting on the (functionally irrelevant) Google Fonts stylesheet to finish downloading.
+- Consistent keyboard focus styling: every button (save, clear, export, theme toggle, delete)
+  now gets the same accent-colored focus ring the platform pills and inputs already had,
+  instead of the browser's default outline on some buttons but not others.
+- Added a `.gitignore` (Python's `__pycache__/`, macOS's `.DS_Store`). Not used by anything
+  yet — there's no git repo here — but it's ready for whenever Milestone 3's "set up a proper
+  project" gets extended to actual version control.
+- Added a `<main>` landmark around the page content (it was a bare `<div class="page">`) —
+  lets screen reader users jump straight to the main content instead of having no landmarks
+  to navigate by at all. Purely semantic: same class, same layout, nothing visually changes.
+- Added `role="status"` to the Account card's message area, so a screen reader announces
+  "Logging in…", "Account created — check your email…", or an error the moment it appears,
+  instead of it being silent unless focus happened to already be there. Left the
+  shipping-insight warning alone on purpose — it updates on every keystroke, and announcing
+  that live would be noisy rather than helpful.
+
+### Milestone 4 prep: developer account checklists
+
+Documentation only — no signups performed on your behalf (that needs your own identity and
+business info, and dashboards change often enough that exact button labels aren't worth
+memorizing until you're actually there). When you're ready to start Milestone 4, Etsy and eBay
+are the two to do first since both have open, self-serve developer programs.
+
+**Etsy** ([developer.etsy.com](https://developer.etsy.com), apps managed at
+[etsy.com/developers/your-apps](https://www.etsy.com/developers/your-apps)):
+1. Register/log in on the Etsy Developers site (email, or continue with Google/Facebook/Apple).
+2. Etsy requires two-factor authentication on your account before you can create an app
+   (an authenticator app, or SMS/phone call).
+3. Click "Create a new app" — you'll need an app name, description, and a callback URL (the
+   address Etsy redirects back to after a seller approves access; can be edited later from the
+   same page).
+4. You get two credentials: a **Keystring** (API key) and a **Shared Secret**. As of a Feb 2026
+   Etsy change, requests need *both* combined in the `x-api-key` header as `keystring:secret` —
+   worth double-checking against their current docs when we build this, since that's the kind
+   of detail that could shift again.
+5. Full OAuth (a seller clicking "Connect Etsy" and approving) is a separate step from just
+   having these credentials — that's the actual Milestone 4 implementation work.
+
+**eBay** ([developer.ebay.com](https://developer.ebay.com)):
+1. Sign up for the eBay Developers Program.
+2. Go to the Application Keys page and create a keyset — Sandbox and Production are separate
+   keysets; Sandbox is a safe fake environment to build against before touching real listings.
+3. Each keyset includes an **App ID (Client ID)**, **Dev ID**, and **Cert ID (Client Secret)**
+   — the ones treated as secret must stay server-side only, same rule as everything else in
+   this project.
+4. Before a **Production** keyset works, eBay requires subscribing to (or explicitly opting
+   out of) marketplace account-deletion/closure notifications — a compliance step that shows
+   up as a "keyset disabled" message with a link to resolve it. Easy to miss, worth expecting.
+5. Production keys never work in Sandbox and vice versa — build and test in Sandbox first.
+
+Sources: [Etsy Open API v3 authentication docs](https://developer.etsy.com/documentation/essentials/authentication/), [How to Get Your Etsy API Key](https://www.insightagent.app/guides/etsy-api-integration-guide), [eBay: Create the eBay API keysets](https://developer.ebay.com/api-docs/static/gs_create-the-ebay-api-keysets.html), [eBay: Understand application keysets](https://developer.ebay.com/api-docs/static/gs_understand-application-keysets.html)
+
+## Milestone 5 prep: Stripe account + architecture
+
+**Documentation only — no account created on your behalf.** Stripe needs your real identity,
+business info, and a bank account for payouts; that's inherently something only you can do.
+
+**Creating your account** ([dashboard.stripe.com](https://dashboard.stripe.com)):
+1. Sign up with your email, then verify it.
+2. You land in **test mode** immediately (a toggle top-left switches test/live) — you can
+   build and fully test the whole flow with fake card numbers before any real money is
+   involved. No rush to submit business/bank details until you're ready to actually charge
+   people.
+3. To go live later, Stripe requires business info, identity verification, and bank details
+   for payouts — that's the "activation" step, separate from just having an account.
+4. **Developers → API keys** gives you a **Publishable key** (`pk_test_...` / `pk_live_...`,
+   safe in browser code) and a **Secret key** (`sk_test_...` / `sk_live_...`, server-only —
+   same rule as Supabase's Secret key, never in `app.js` or anywhere browser-visible).
+
+**Why this needs a webhook (a second backend piece, beyond just API keys):** knowing someone
+paid isn't as simple as "they landed on a success page" — they could close the tab before
+that page loads, a subscription can fail to renew next month, someone can cancel. The only
+reliable way to know is a **webhook**: Stripe calls a server endpoint of ours the moment
+something actually happens (`checkout.session.completed`, `customer.subscription.updated`,
+etc.), signed with a secret (`whsec_...`) so we can verify it's really Stripe. That endpoint
+then updates the signed-in user's row in Supabase's new `subscriptions` table.
+
+**The plan: a Supabase Edge Function as that endpoint.** We already have a Supabase project;
+Edge Functions are small serverless functions Supabase can host for us, so this doesn't mean
+adding a whole new hosting provider just for one webhook. Supabase has an official pattern for
+this (their CLI, a function that verifies the Stripe signature, secrets stored as Supabase
+project environment variables — never committed to this repo). This is genuinely the first
+piece of *server-side* code this project will have, since everything before now ran entirely
+in the browser or inside Supabase's own managed database rules.
+
+Sources: [Stripe: Set up your account](https://docs.stripe.com/get-started/account/set-up), [Stripe: API keys](https://docs.stripe.com/keys), [Supabase: Handling Stripe Webhooks](https://supabase.com/docs/guides/functions/examples/stripe-webhooks)
+
+## Milestone 5 status: verified end-to-end, for real
+
+Every piece is built, deployed, and confirmed working — not just reasoned to be correct:
+
+- `schema-subscriptions.sql` — the `subscriptions` table + its read-only-from-the-browser RLS
+  policy. Run and confirmed against the real project.
+- The Account card's Pro status block (`app.js`, `index.html`, `style.css`) — shows "Free
+  plan" / "Pro," an Upgrade button carrying `client_reference_id`, a "not set up yet"
+  fallback for a fresh clone. Along the way, testing caught a real bug (the Upgrade button
+  could get stuck hidden if the status check failed) — fixed before calling it done.
+- `supabase/functions/stripe-webhook/index.ts` — deployed to the real project via the
+  Supabase CLI and confirmed live.
+- **A full real checkout**, start to finish: a test account clicked Upgrade, paid with
+  Stripe's official test card (`4242 4242 4242 4242`, no real money — test mode) at the real
+  Payment Link, Stripe delivered the webhook, the deployed function verified its signature
+  and wrote to `subscriptions`, and the app correctly showed that same account as "Pro" on
+  the next sign-in. Every link in that chain fired for real.
+
+**A real gotcha hit and fixed along the way**, worth remembering: Supabase Edge Functions
+require their *own* auth token (a Supabase-issued one) by default — but Stripe has no idea
+Supabase exists and only sends its own signature header, so the first deploy attempt got a
+401 before Stripe's request ever reached our code. Fixed by deploying with
+`--no-verify-jwt`, since the function already does its own, more appropriate check (the
+Stripe signature) instead.
+
+**Setup steps, for reference** (already done for this project's real Stripe/Supabase
+accounts — useful if you ever need to redo this on a fresh clone or a new project):
+1. In Stripe (test mode), create a Product + recurring monthly Price for "Pro," then a
+   **Payment Link** for it. Paste that link into `stripe-config.js`.
+2. Run `schema-subscriptions.sql` in Supabase's SQL Editor.
+3. Install the [Supabase CLI](https://supabase.com/docs/guides/cli), generate a scoped
+   personal access token (Project Settings: Read, Edge Functions: Read-write, Edge Function
+   Secrets: Read-write — nothing else needed), and `supabase login --token ...`.
+4. `supabase functions deploy stripe-webhook --project-ref <ref> --no-verify-jwt`
+5. `supabase secrets set STRIPE_SECRET_KEY=... STRIPE_WEBHOOK_SIGNING_SECRET=... --project-ref <ref>`
+6. In Stripe, create a webhook/event destination pointed at
+   `https://<ref>.supabase.co/functions/v1/stripe-webhook`, listening for
+   `checkout.session.completed`, `customer.subscription.updated`, and
+   `customer.subscription.deleted`. Its Signing secret is what step 5 needs.
+7. Run a real test-mode checkout with a [Stripe test card](https://docs.stripe.com/testing)
+   to confirm the whole chain before ever touching live mode.
