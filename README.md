@@ -53,8 +53,9 @@ example), you can use that instead to auto-refresh while editing.
    add user sign-in and a database (using Supabase). Verified end-to-end against a real
    Supabase project: sign up, log in, session persists across reloads, saving/deleting/
    clearing sales all hit the real `sales` table and are private per-account via RLS.
-4. ⬜ **Connect marketplaces for real** — pull a seller's actual orders automatically instead
-   of typing numbers by hand, feeding straight into the same sales history list.
+4. 🚧 **Connect marketplaces for real** — pull a seller's actual orders automatically instead
+   of typing numbers by hand, feeding straight into the same sales history list. Gated to Pro
+   accounts (free stays manual-entry, unlimited, exactly as it is today).
    Requires Milestone 3 first: a real API connection means OAuth tokens/secrets, which must
    live on a server, never in browser-side code anyone can read via dev tools.
    Availability varies a lot by platform, so the order will likely be:
@@ -68,6 +69,10 @@ example), you can use that instead to auto-refresh while editing.
        token with no approval wait for a single store. To connect *many* different sellers'
        stores (what this app needs), we'd register as a free Shopify Partner and use their
        OAuth flow — same backend requirement as everything else here, but no gatekeeping.
+
+   **Etsy status:** all the code is built and verified up to the point of needing Etsy's
+   approval — see "Milestone 4 status" below for exactly what's confirmed working vs. what's
+   waiting on Etsy.
 5. ✅ **Add payments** — Stripe, so people can subscribe and pay for the Pro version. Pro
    unlocks Milestone 4's automatic marketplace imports once that exists; free stays exactly
    as-is otherwise. Verified end-to-end for real: a real Stripe test-mode checkout (test
@@ -324,3 +329,35 @@ accounts — useful if you ever need to redo this on a fresh clone or a new proj
    `customer.subscription.deleted`. Its Signing secret is what step 5 needs.
 7. Run a real test-mode checkout with a [Stripe test card](https://docs.stripe.com/testing)
    to confirm the whole chain before ever touching live mode.
+
+## Milestone 4 status: built and verified up to Etsy's own approval queue
+
+**Etsy has three API access tiers**, learned the hard way mid-build: **Seller App** (your own
+shop only, auto-approved in minutes), **Personal App** (broader access, ~24-48hr manual
+review), and **Commercial Access** (many sellers via OAuth — what this app actually needs,
+but it requires an *approved Personal App first*, then a *separate* manual review on top).
+Two waiting periods, not one, neither of which either of us can speed up.
+
+**Built and confirmed working, for real** (not just reasoned through):
+- `schema-platform-connections.sql` — `platform_connections` (holds real tokens; RLS enabled
+  with zero policies for regular users — not even read access to their own row, since a
+  leaked token could pull real order data) and `platform_connection_status` (a view exposing
+  just enough to show "Connected" or not, with its own `where user_id = auth.uid()` doing the
+  scoping instead of RLS), plus `oauth_flow_state` for PKCE's temporary handoff value.
+- `etsy-config.js` / `stripe-config.js` split worth noting: Etsy's Keystring is the *public*
+  half of OAuth (like a client ID) and belongs in browser code; only the Shared Secret is
+  server-only. Easy to mix up — I did, briefly, storing both as server secrets before
+  correcting it.
+- The "Connect Etsy" UI (gated to Pro accounts only, confirmed hidden for a free account) —
+  clicking it generates the PKCE security values, saves the attempt to `oauth_flow_state`
+  (confirmed working against the real database), and redirects to Etsy's real authorization
+  page with every parameter — Keystring, callback URL, scopes, PKCE challenge — correct.
+- `supabase/functions/etsy-oauth-callback/index.ts` — deployed, confirmed reachable, and
+  confirmed to correctly reject bad/missing/expired requests with a friendly page rather than
+  a raw error.
+
+**What's actually blocked:** completing a real connection, since Etsy's servers reject any
+OAuth attempt from an app that isn't yet in one of the two approved tiers above. Nothing to
+fix on our end — this app (`reseller-tracker`) is correctly registered as a Personal App and
+sitting in Etsy's review queue. Once that clears, the *next* step is requesting the Commercial
+Access upgrade on top, before a real end-to-end connection can be tested.

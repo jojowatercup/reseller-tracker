@@ -220,7 +220,105 @@ async function refreshProStatus() {
   } else {
     statusText.textContent = "Pro unlocks automatic marketplace imports once Milestone 4 ships.";
   }
+
+  currentUserIsPro = isPro;
+  await refreshConnections();
 }
+
+// ---- Marketplace connections (Etsy OAuth) ------------------------------
+// Only relevant once someone's on Pro — the free tier stays manual-entry
+// only, per the Milestone 5 plan.
+let currentUserIsPro = false;
+
+// Etsy's OAuth needs an extra security step called PKCE: before sending
+// someone to Etsy to approve access, we generate a random secret (the
+// "verifier"), keep it hidden, and only send Etsy a scrambled version of
+// it (the "challenge" — a SHA-256 hash). When Etsy sends the person back
+// with an approval code, our server proves it was really us who started
+// this by revealing the original verifier. Without this, someone who
+// intercepted the approval code alone couldn't finish the exchange.
+function base64UrlEncode(bytes) {
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+function generateCodeVerifier() {
+  const bytes = new Uint8Array(32);
+  crypto.getRandomValues(bytes);
+  return base64UrlEncode(bytes);
+}
+
+async function generateCodeChallenge(verifier) {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier));
+  return base64UrlEncode(new Uint8Array(digest));
+}
+
+// Must exactly match the redirect_uri the etsy-oauth-callback function
+// itself uses when exchanging the code — Etsy rejects a mismatch.
+const ETSY_REDIRECT_URI = "https://utaepqledbcvwrjpqvys.supabase.co/functions/v1/etsy-oauth-callback";
+
+async function refreshConnections() {
+  const block = $("connectionsBlock");
+  if (!currentUserIsPro) {
+    block.hidden = true;
+    return;
+  }
+  block.hidden = false;
+
+  const { data, error } = await supabaseClient
+    .from("platform_connection_status")
+    .select("connected_at")
+    .eq("platform", "etsy")
+    .maybeSingle();
+
+  const badge = $("etsyBadge");
+  const text = $("etsyStatusText");
+  const btn = $("connectEtsyBtn");
+
+  if (!error && data) {
+    badge.textContent = "Connected";
+    badge.classList.add("is-pro");
+    const since = new Date(data.connected_at).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+    text.textContent = `Connected to Etsy since ${since}.`;
+    btn.textContent = "Reconnect Etsy";
+  } else {
+    badge.textContent = "Not connected";
+    badge.classList.remove("is-pro");
+    text.textContent = "Connect your Etsy shop to import orders automatically.";
+    btn.textContent = "Connect Etsy";
+  }
+}
+
+$("connectEtsyBtn").addEventListener("click", async () => {
+  const verifier = generateCodeVerifier();
+  const challenge = await generateCodeChallenge(verifier);
+  const state = makeId();
+
+  // user_id isn't sent — like the sales table, it's filled in
+  // automatically from auth.uid() (see schema-platform-connections.sql).
+  const { error } = await supabaseClient.from("oauth_flow_state").insert({
+    state,
+    platform: "etsy",
+    code_verifier: verifier,
+  });
+
+  if (error) {
+    alert("Couldn't start the Etsy connection: " + error.message);
+    return;
+  }
+
+  const params = new URLSearchParams({
+    response_type: "code",
+    client_id: ETSY_KEYSTRING,
+    redirect_uri: ETSY_REDIRECT_URI,
+    scope: "transactions_r shops_r",
+    state,
+    code_challenge: challenge,
+    code_challenge_method: "S256",
+  });
+  window.location.href = `https://www.etsy.com/oauth/connect?${params.toString()}`;
+});
 
 // Set by the auth listener near the bottom of this file. null = signed out.
 let currentUser = null;

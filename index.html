@@ -127,6 +127,14 @@
         </p>
       </div>
 
+      <div class="pro-status" id="connectionsBlock" hidden>
+        <div class="plan-row">
+          <span class="plan-badge" id="etsyBadge">Not connected</span>
+          <span class="history-empty" id="etsyStatusText">Connect your Etsy shop to import orders automatically.</span>
+        </div>
+        <button class="save-btn" id="connectEtsyBtn" type="button" style="margin-top:0;">Connect Etsy</button>
+      </div>
+
       <button type="button" class="text-btn" id="authSignOutBtn">Log out</button>
     </div>
   </div>
@@ -157,4 +165,5 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="supabase-config.js"></script>
 <script src="stripe-config.js"></script>
+<script src="etsy-config.js"></script>
 <script src="app.js"></script>
