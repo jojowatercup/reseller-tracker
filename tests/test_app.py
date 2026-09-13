@@ -68,6 +68,34 @@ def test_calculator_math(page, context):
     assert page.inner_text("#rKeep") == "$99.30", page.inner_text("#rKeep")
 
 
+def test_compare_all_platforms(page, context):
+    page.goto(INDEX_URL, wait_until="domcontentloaded")
+    page.wait_for_selector("#toggleCompareBtn")
+    assert page.is_hidden("#compareSection")
+
+    page.click("#toggleCompareBtn")
+    page.wait_for_timeout(150)
+    assert page.is_visible("#compareSection")
+
+    rows = page.query_selector_all(".compare-row")
+    assert len(rows) == 7, "one row per platform"
+
+    keeps = [float(r.query_selector(".compare-keep").inner_text().lstrip("$").replace(",", "")) for r in rows]
+    assert keeps == sorted(keeps, reverse=True), "should be sorted highest payout first"
+    assert "is-best" in rows[0].get_attribute("class"), "the top row should be marked is-best"
+    assert "Depop" in page.query_selector(".compare-row.is-current").inner_text(), \
+        "the currently-selected platform (Depop by default) should be marked"
+
+    # Switching platforms moves which row is marked "current"
+    page.click('button.platform-pill:has-text("Poshmark")')
+    page.wait_for_timeout(150)
+    assert "Poshmark" in page.query_selector(".compare-row.is-current").inner_text()
+
+    page.click("#toggleCompareBtn")
+    page.wait_for_timeout(150)
+    assert page.is_hidden("#compareSection")
+
+
 def test_print_view(page, context):
     """The receipt restates every input as its own line, so the whole
     calculator card + account card + history card can hide when printed
@@ -198,6 +226,99 @@ def test_local_history_save_reload_delete_clear(page, context):
     page.wait_for_timeout(200)
     assert len(page.query_selector_all(".history-row")) == 0
     assert page.is_visible("#historyEmpty")
+
+
+def test_history_filter_and_sort(page, context):
+    """The platform filter is pills, not a dropdown, specifically so more
+    than one can be active at once (e.g. "Etsy + eBay + TikTok Shop")."""
+    page.goto(INDEX_URL, wait_until="domcontentloaded")
+    page.wait_for_selector("#saveSaleBtn")
+
+    def save(platform_label, price):
+        if platform_label:
+            page.click(f'button.platform-pill:has-text("{platform_label}")')
+        page.fill("#price", str(price))
+        page.wait_for_timeout(80)
+        page.click("#saveSaleBtn")
+        page.wait_for_timeout(200)
+
+    save(None, "42.00")     # Depop (default), lowest keep
+    save("Etsy", "100.00")  # highest keep
+    save("eBay", "60.00")
+    page.wait_for_timeout(200)
+
+    all_pill = page.query_selector("#historyFilterPlatforms button[data-key='all']")
+    assert all_pill.get_attribute("aria-pressed") == "true", "All should be active with no filter chosen"
+
+    # Multiple platforms together
+    page.click("#historyFilterPlatforms button[data-key='etsy']")
+    page.click("#historyFilterPlatforms button[data-key='ebay']")
+    page.wait_for_timeout(150)
+    assert all_pill.get_attribute("aria-pressed") == "false"
+    rows_text = " ".join(r.inner_text() for r in page.query_selector_all(".history-row"))
+    assert "Etsy" in rows_text and "eBay" in rows_text and "Depop" not in rows_text
+
+    # Deselecting every specific pill falls back to "All"
+    page.click("#historyFilterPlatforms button[data-key='etsy']")
+    page.click("#historyFilterPlatforms button[data-key='ebay']")
+    page.wait_for_timeout(150)
+    assert all_pill.get_attribute("aria-pressed") == "true"
+    assert len(page.query_selector_all(".history-row")) == 3
+
+    # A platform with zero matching entries shows the filter-empty state
+    page.click("#historyFilterPlatforms button[data-key='shopify']")
+    page.wait_for_timeout(150)
+    assert page.is_visible("#historyFilterEmpty")
+    page.click("#historyFilterPlatforms button[data-key='all']")
+    page.wait_for_timeout(150)
+
+    # Sort by highest/lowest kept
+    page.select_option("#historySortBy", "highest")
+    page.wait_for_timeout(150)
+    assert "Etsy" in page.query_selector(".history-row").inner_text()
+    page.select_option("#historySortBy", "lowest")
+    page.wait_for_timeout(150)
+    assert "Depop" in page.query_selector(".history-row").inner_text()
+
+
+def test_profit_chart(page, context):
+    """A one-bar bar chart is a known anti-pattern (it's really just a
+    number) — the chart should hold off until there's something to
+    actually compare."""
+    page.goto(INDEX_URL, wait_until="domcontentloaded")
+    page.wait_for_selector("#saveSaleBtn")
+
+    def save(platform_label, price):
+        page.click(f'button.platform-pill:has-text("{platform_label}")')
+        page.fill("#price", str(price))
+        page.wait_for_timeout(80)
+        page.click("#saveSaleBtn")
+        page.wait_for_timeout(200)
+
+    save("Depop", "42.00")
+    page.click("#toggleChartBtn")
+    page.wait_for_timeout(150)
+    assert page.is_visible("#profitChartSection")
+    assert "more than one platform" in page.inner_text("#profitChartNote")
+    assert len(page.query_selector_all(".chart-row")) == 0
+
+    save("Etsy", "100.00")
+    page.wait_for_timeout(300)
+    rows = page.query_selector_all(".chart-row")
+    assert len(rows) == 2
+    assert "Etsy" in rows[0].inner_text() and "1 sale" in rows[0].inner_text(), \
+        "Etsy's bigger sale should sort first"
+    widths = [page.evaluate("el => el.style.width", r.query_selector(".chart-row-bar")) for r in rows]
+    assert widths[0] == "100%", "the largest value's bar should fill the track"
+    assert float(widths[1].rstrip("%")) < 100
+
+    # A second Depop sale should aggregate into the same bar, not a new one
+    save("Depop", "10.00")
+    page.wait_for_timeout(300)
+    rows = page.query_selector_all(".chart-row")
+    assert len(rows) == 2, "still one bar per platform, not one per sale"
+    depop_row_text = next(r.inner_text() for r in rows if "Depop" in r.inner_text())
+    assert "2 sales" in depop_row_text
 
 
 def test_malicious_platform_value_does_not_execute_as_html(page, context):
@@ -443,6 +564,7 @@ def test_stale_pro_status_response_cannot_overwrite_a_newer_one(page, context):
 
 TESTS = [
     ("calculator math (Etsy, hand-checked numbers)", test_calculator_math),
+    ("compare all platforms", test_compare_all_platforms),
     ("print view: interactive chrome hides, receipt stays", test_print_view),
     ("only the destructive action hovers red", test_only_destructive_action_hovers_red),
     ("calculator math (all other platforms + Poshmark's $15 branch)", test_all_platform_fee_formulas),
@@ -450,6 +572,8 @@ TESTS = [
     ("a loss flips \"You keep\" to red", test_loss_flips_to_red),
     ("shipping-cost insight shows and hides correctly", test_shipping_insight_shows_and_hides),
     ("local history: save, reload, delete, clear", test_local_history_save_reload_delete_clear),
+    ("history filter (multi-select) and sort", test_history_filter_and_sort),
+    ("profit chart by platform", test_profit_chart),
     ("a malicious platform value can't execute as HTML", test_malicious_platform_value_does_not_execute_as_html),
     ("CSV export: header, order, and values", test_csv_export),
     ("CSV export defuses formula injection", test_csv_export_defuses_formula_injection),

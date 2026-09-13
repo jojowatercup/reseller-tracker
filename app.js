@@ -154,7 +154,45 @@ function calculate() {
   } else {
     insight.hidden = true;
   }
+
+  renderComparison(r);
 }
+
+// Same sale, every platform's formula — sorted best payout first, so the
+// answer to "where should I actually list this" is the first thing you
+// see rather than something you'd have to compute by hand seven times.
+function renderComparison(r) {
+  const rows = Object.entries(PLATFORMS)
+    .map(([key, platform]) => ({
+      key,
+      name: platform.name,
+      keep: r.total - platform.fee(r.price, r.shipCharged) - r.shipCost - r.itemCost,
+    }))
+    .sort((a, b) => b.keep - a.keep);
+
+  const listEl = $("compareList");
+  listEl.innerHTML = "";
+  rows.forEach((row, i) => {
+    const el = document.createElement("div");
+    el.className = "compare-row"
+      + (i === 0 ? " is-best" : "")
+      + (row.key === currentPlatform ? " is-current" : "");
+    el.innerHTML = `
+      <span class="compare-rank">${i + 1}</span>
+      <span class="compare-name">${escapeHtml(row.name)}</span>
+      <span class="compare-keep">${money(row.keep)}</span>
+    `;
+    listEl.appendChild(el);
+  });
+}
+
+$("toggleCompareBtn").addEventListener("click", () => {
+  const section = $("compareSection");
+  const isOpen = !section.hidden;
+  section.hidden = isOpen;
+  $("toggleCompareBtn").setAttribute("aria-expanded", String(!isOpen));
+  $("toggleCompareBtn").textContent = isOpen ? "Compare all platforms" : "Hide comparison";
+});
 
 ["price", "shipCharged", "shipCost", "itemCost"].forEach(id => {
   $(id).addEventListener("input", calculate);
@@ -492,9 +530,12 @@ async function clearAllHistory() {
   await refreshHistory();
 }
 
-// The dropdown's current choices — changing either just re-runs
-// renderHistory() below, entirely in memory, no re-fetch needed.
-let historyFilterPlatform = "all";
+// Which platforms are currently checked (empty set = show everything —
+// same meaning as the old "All" option, just expressed as "nothing has
+// been narrowed down yet" instead of a special value to check for).
+// Changing either this or the sort just re-runs renderHistory() below,
+// entirely in memory, no re-fetch needed.
+let historyFilterPlatforms = new Set();
 let historySortBy = "newest";
 
 // Filters and sorts a *copy* of history, leaving the real array (and its
@@ -505,7 +546,7 @@ function getVisibleHistory() {
   // safe for .sort() to rearrange in place below without touching the
   // real, on-disk/on-server ordering in `history` itself.
   const items = history.filter(entry =>
-    historyFilterPlatform === "all" || entry.platform === historyFilterPlatform
+    historyFilterPlatforms.size === 0 || historyFilterPlatforms.has(entry.platform)
   );
   const byDate = (a, b) => new Date(a.date) - new Date(b.date);
   switch (historySortBy) {
@@ -523,6 +564,7 @@ function renderHistory() {
   const filterEmptyEl = $("historyFilterEmpty");
   const summaryEl = $("historySummary");
   const filtersEl = $("historyFilters");
+  const chartToggleBtn = $("toggleChartBtn");
   const clearBtn = $("clearHistoryBtn");
   const exportBtn = $("exportCsvBtn");
 
@@ -535,12 +577,16 @@ function renderHistory() {
     filterEmptyEl.hidden = true;
     summaryEl.hidden = true;
     filtersEl.hidden = true;
+    chartToggleBtn.hidden = true;
+    $("profitChartSection").hidden = true;
     return;
   }
 
   emptyEl.hidden = true;
   filtersEl.hidden = false;
   summaryEl.hidden = false;
+  chartToggleBtn.hidden = false;
+  renderProfitChart();
 
   const visible = getVisibleHistory();
 
@@ -581,22 +627,104 @@ function renderHistory() {
 }
 
 // Same platform list the calculator uses, so the filter never drifts out
-// of sync with what a saved entry could actually be.
-Object.entries(PLATFORMS).forEach(([key, p]) => {
-  const option = document.createElement("option");
-  option.value = key;
-  option.textContent = p.name;
-  $("historyFilterPlatform").appendChild(option);
-});
+// of sync with what a saved entry could actually be. Unlike the
+// calculator's platform pills (pick exactly one), any number of these
+// can be active at once — "Etsy + eBay + TikTok Shop" is a valid filter.
+// Clicking "All" clears any specific picks; toggling off the last
+// specific pick falls back to "All" automatically.
+const historyFilterPlatformsEl = $("historyFilterPlatforms");
 
-$("historyFilterPlatform").addEventListener("change", e => {
-  historyFilterPlatform = e.target.value;
-  renderHistory();
+function updateHistoryFilterPills() {
+  [...historyFilterPlatformsEl.children].forEach(pill => {
+    const isActive = pill.dataset.key === "all"
+      ? historyFilterPlatforms.size === 0
+      : historyFilterPlatforms.has(pill.dataset.key);
+    pill.setAttribute("aria-pressed", isActive ? "true" : "false");
+  });
+}
+
+function makeFilterPill(key, label) {
+  const pill = document.createElement("button");
+  pill.type = "button";
+  pill.className = "platform-pill";
+  pill.textContent = label;
+  pill.dataset.key = key;
+  pill.setAttribute("aria-pressed", key === "all" ? "true" : "false");
+  pill.addEventListener("click", () => {
+    if (key === "all") {
+      historyFilterPlatforms.clear();
+    } else if (historyFilterPlatforms.has(key)) {
+      historyFilterPlatforms.delete(key);
+    } else {
+      historyFilterPlatforms.add(key);
+    }
+    updateHistoryFilterPills();
+    renderHistory();
+  });
+  return pill;
+}
+
+historyFilterPlatformsEl.appendChild(makeFilterPill("all", "All"));
+Object.entries(PLATFORMS).forEach(([key, p]) => {
+  historyFilterPlatformsEl.appendChild(makeFilterPill(key, p.name));
 });
 
 $("historySortBy").addEventListener("change", e => {
   historySortBy = e.target.value;
   renderHistory();
+});
+
+// A single-hue bar chart, not one color per platform: the job here is
+// comparing magnitude ("who made the most"), not telling series apart in
+// a legend, so one accent hue — the same one used everywhere else in
+// this app — does the job without inventing a whole separate palette.
+function renderProfitChart() {
+  const totals = new Map(); // platform key -> { keep, count }
+  history.forEach(entry => {
+    const running = totals.get(entry.platform) || { keep: 0, count: 0 };
+    running.keep += entry.keep;
+    running.count += 1;
+    totals.set(entry.platform, running);
+  });
+
+  const rows = [...totals.entries()]
+    .map(([key, { keep, count }]) => ({ key, name: PLATFORMS[key]?.name ?? key, keep, count }))
+    .sort((a, b) => b.keep - a.keep);
+
+  const chartEl = $("profitChart");
+  const noteEl = $("profitChartNote");
+  chartEl.innerHTML = "";
+
+  // A bar chart with a single bar is really just a number — the chart
+  // earns its place once there's something to actually compare.
+  if (rows.length < 2) {
+    noteEl.textContent = "Save sales on more than one platform to compare them here.";
+    return;
+  }
+  noteEl.textContent = "Total kept by platform, across everything you've saved (not affected by the filter below).";
+
+  const maxKeep = Math.max(...rows.map(r => Math.abs(r.keep)), 1);
+  rows.forEach(row => {
+    const widthPct = Math.max(0, (row.keep / maxKeep) * 100);
+    const el = document.createElement("div");
+    el.className = "chart-row";
+    el.innerHTML = `
+      <div class="chart-row-label">
+        <span class="chart-row-name">${escapeHtml(row.name)} <span class="chart-row-count">&middot; ${row.count} sale${row.count === 1 ? "" : "s"}</span></span>
+        <span class="chart-row-value">${money(row.keep)}</span>
+      </div>
+      <div class="chart-row-track"><div class="chart-row-bar" style="width:${widthPct}%"></div></div>
+    `;
+    chartEl.appendChild(el);
+  });
+}
+
+$("toggleChartBtn").addEventListener("click", () => {
+  const section = $("profitChartSection");
+  const isOpen = !section.hidden;
+  section.hidden = isOpen;
+  $("toggleChartBtn").setAttribute("aria-expanded", String(!isOpen));
+  $("toggleChartBtn").textContent = isOpen ? "Show profit chart" : "Hide profit chart";
 });
 
 const saveSaleBtn = $("saveSaleBtn");

@@ -249,14 +249,13 @@ input:focus-visible {
 }
 
 .history-filters {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
+  display: flex;
+  flex-direction: column;
   gap: 14px;
   padding-bottom: 4px;
 }
 
 .history-filters select {
-  width: 100%;
   font-family: "Work Sans", sans-serif;
   font-size: 13.5px;
   color: var(--text);
@@ -264,6 +263,15 @@ input:focus-visible {
   border: 1px solid var(--border);
   border-radius: 10px;
   padding: 8px 10px;
+}
+
+/* A smaller pill for the history filter row — this list is twice as
+   long as the calculator's (an "All" pill on top of all 7 platforms),
+   so it earns a slightly tighter size to keep the row from feeling
+   heavier than the section it's filtering. */
+#historyFilterPlatforms .platform-pill {
+  font-size: 12px;
+  padding: 5px 12px;
 }
 
 .platform-note {
@@ -418,6 +426,75 @@ input:focus-visible {
 .save-btn:active { transform: scale(0.98); }
 .save-btn:disabled { opacity: 0.65; cursor: default; }
 
+#toggleCompareBtn {
+  margin-top: 14px;
+  align-self: flex-start;
+}
+
+.compare-section {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px dashed var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.compare-note {
+  font-family: "Work Sans", sans-serif;
+  font-size: 12.5px;
+  color: var(--text-muted);
+  margin: 0;
+}
+
+.compare-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.compare-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border-top: 1px dashed var(--border);
+  font-family: "Work Sans", sans-serif;
+  font-size: 13.5px;
+}
+
+.compare-row:first-child { border-top: none; }
+
+.compare-rank {
+  flex-shrink: 0;
+  width: 18px;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 11px;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.compare-name { flex: 1; font-weight: 500; }
+
+.compare-keep {
+  font-family: "IBM Plex Mono", monospace;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+/* The sale's currently-selected platform, extended to the card's own
+   edges so it reads as "you are here" among the full list. */
+.compare-row.is-current {
+  background: var(--surface-sunken);
+  margin: 0 -24px;
+  padding: 8px 24px;
+  border-top-color: transparent;
+}
+
+/* The single highest payout, regardless of which one's selected — the
+   whole point of this view is spotting it at a glance. */
+.compare-row.is-best .compare-keep { color: var(--accent-ink); }
+
 .history-head {
   display: flex;
   align-items: baseline;
@@ -477,6 +554,69 @@ input:focus-visible {
   font-size: 17px;
   font-variant-numeric: tabular-nums;
   color: var(--text);
+}
+
+#toggleChartBtn { align-self: flex-start; }
+
+.profit-chart-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.profit-chart {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.chart-row-label {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+
+.chart-row-name {
+  font-family: "Work Sans", sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.chart-row-count {
+  font-family: "Work Sans", sans-serif;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--text-muted);
+}
+
+.chart-row-value {
+  flex-shrink: 0;
+  font-family: "IBM Plex Mono", monospace;
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+/* A track + a fill, both fully rounded — matching this app's pill
+   language (platform pills, badges) rather than the sharper small-radius
+   bar ends a more neutral dashboard might use. */
+.chart-row-track {
+  height: 10px;
+  background: var(--surface-sunken);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.chart-row-bar {
+  height: 100%;
+  min-width: 10px;
+  background: var(--accent);
+  border-radius: 999px;
 }
 
 .history-empty {
@@ -654,12 +794,12 @@ code {
 
 @media (max-width: 420px) {
   .field-grid { grid-template-columns: 1fr; }
-  .history-filters { grid-template-columns: 1fr; }
   .history-row { flex-wrap: wrap; }
 }
 
 @media (prefers-reduced-motion: no-preference) {
   .keep .amount { transition: opacity 0.15s ease; }
+  .chart-row-bar { transition: width 0.3s ease; }
 
   .toast {
     animation: toast-in 0.2s ease;
@@ -688,6 +828,8 @@ code {
   .theme-toggle,
   #calculatorCard,
   .save-btn,
+  #toggleCompareBtn,
+  #compareSection,
   #authCard,
   #historyCard {
     display: none;

@@ -404,3 +404,22 @@ file, not just the day's diff) turned up seven real findings, all fixed:
 Every fix has its own regression test now (`tests/test_app.py`, 15/16 — 1 correctly skipped).
 The two security fixes and the race-condition fix were each verified by temporarily reverting
 the fix and confirming the test actually fails, not just reasoned through.
+
+## The last two UI additions: compare platforms, and a profit chart
+
+**Compare all platforms** — a "Compare all platforms" toggle under the receipt shows the same
+sale's payout on all 7 platforms at once, sorted best-first, with the currently-selected one
+highlighted. Updates live as you change any number. Answers "where should I actually list
+this" directly instead of making you flip through platforms one at a time.
+
+**A profit chart in Sales History** — a "Show profit chart" toggle reveals total kept per
+platform, across everything you've saved, as horizontal bars. Two deliberate choices worth
+recording:
+- **One color, not seven.** The job here is comparing *magnitude* ("who made the most"), not
+  telling distinct series apart in a legend — for that job, one hue (this app's existing
+  accent green, not a new palette) is the right call, not a rainbow.
+- **It won't show a chart for just one platform.** A bar chart with a single bar is really
+  just a number wearing a chart's clothes — a known anti-pattern. Save sales on a second
+  platform and the chart appears.
+
+Both are sorted, live-updating, fully keyboard-reachable, and covered by their own tests.

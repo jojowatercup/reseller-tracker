@@ -75,6 +75,13 @@
       <span class="rate" id="rRate"></span>
     </div>
     <button class="save-btn" id="saveSaleBtn" type="button">Save this sale to history</button>
+
+    <button class="text-btn" id="toggleCompareBtn" type="button" aria-expanded="false" aria-controls="compareSection">Compare all platforms</button>
+    <div class="compare-section" id="compareSection" hidden>
+      <p class="compare-note">Same sale, every platform's fees — highest payout first.</p>
+      <div class="compare-list" id="compareList"></div>
+    </div>
+
     <p class="print-only" id="printStamp"></p>
   </div>
 
@@ -157,10 +164,15 @@
         <span class="stat-value" id="historyTotalKeep">$0.00</span>
       </div>
     </div>
+    <button class="text-btn" id="toggleChartBtn" type="button" aria-expanded="false" aria-controls="profitChartSection" hidden>Show profit chart</button>
+    <div class="profit-chart-section" id="profitChartSection" hidden>
+      <p class="compare-note" id="profitChartNote">Total kept by platform, across everything you've saved (not affected by the filter below).</p>
+      <div class="profit-chart" id="profitChart"></div>
+    </div>
     <div class="history-filters" id="historyFilters" hidden>
       <div class="field">
-        <label for="historyFilterPlatform">Platform</label>
-        <select id="historyFilterPlatform"><option value="all">All platforms</option></select>
+        <label id="historyFilterPlatformsLabel">Platforms shown</label>
+        <div class="platform-row" id="historyFilterPlatforms" role="group" aria-labelledby="historyFilterPlatformsLabel"></div>
       </div>
       <div class="field">
         <label for="historySortBy">Sort by</label>
