@@ -12,7 +12,7 @@
   --danger: #B5502B;
   --danger-soft: #F6E6DE;
   --focus: #1E7A4C;
-  --shadow: 0 1px 2px rgba(24,32,24,0.04), 0 8px 24px -12px rgba(24,32,24,0.18);
+  --shadow: 0 2px 3px rgba(24,32,24,0.05), 0 14px 32px -14px rgba(24,32,24,0.22);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -30,7 +30,7 @@
     --danger: #E0895F;
     --danger-soft: #3A2A21;
     --focus: #4FBE85;
-    --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 12px 32px -14px rgba(0,0,0,0.6);
+    --shadow: 0 2px 4px rgba(0,0,0,0.35), 0 18px 40px -16px rgba(0,0,0,0.65);
   }
 }
 
@@ -48,7 +48,7 @@
   --danger: #E0895F;
   --danger-soft: #3A2A21;
   --focus: #4FBE85;
-  --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 12px 32px -14px rgba(0,0,0,0.6);
+  --shadow: 0 2px 4px rgba(0,0,0,0.35), 0 18px 40px -16px rgba(0,0,0,0.65);
 }
 
 * { box-sizing: border-box; }
@@ -69,12 +69,25 @@ body {
 }
 
 .page {
-  max-width: 640px;
+  max-width: 680px;
   margin: 0 auto;
   padding: 40px 20px 64px;
   display: flex;
   flex-direction: column;
   gap: 28px;
+}
+
+/* The layout stays single-column at every width on purpose — this just
+   gives it room to breathe once there's real desktop space to spend,
+   rather than sitting in a mobile-width column with empty margins on
+   either side. */
+@media (min-width: 760px) {
+  .page {
+    max-width: 760px;
+    padding-top: 64px;
+    padding-bottom: 88px;
+    gap: 36px;
+  }
 }
 
 .hero {
@@ -109,6 +122,9 @@ body {
 .theme-toggle:hover { border-color: var(--border-strong); }
 
 .eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   font-family: "IBM Plex Mono", ui-monospace, monospace;
   font-size: 12px;
   letter-spacing: 0.08em;
@@ -116,10 +132,22 @@ body {
   color: var(--text-muted);
 }
 
+/* A small anchor of color at the very top of the page — the one purely
+   decorative accent mark in the whole design, kept to a single hairline
+   so it reads as a considered detail rather than decoration for its
+   own sake. */
+.eyebrow::before {
+  content: "";
+  width: 14px;
+  height: 2px;
+  background: var(--accent);
+  border-radius: 1px;
+}
+
 h1 {
   font-family: "Fraunces", Georgia, serif;
   font-weight: 600;
-  font-size: clamp(28px, 6vw, 38px);
+  font-size: clamp(28px, 5vw, 46px);
   line-height: 1.08;
   margin: 0;
   text-wrap: balance;
@@ -329,14 +357,22 @@ input:focus-visible {
   margin-top: 4px;
 }
 
+/* The one number this whole page exists to answer — given its own
+   tinted, rounded block instead of just a heavier rule above it, the
+   way a real receipt's total sometimes gets a stamp or a highlighted
+   line. The tint itself carries the profit/loss signal (green vs. rust)
+   before you've even read the figure. */
 .keep {
-  margin-top: 14px;
-  border-top: 2px solid var(--text);
-  padding-top: 16px;
+  margin-top: 18px;
+  padding: 20px 22px;
+  border-radius: 14px;
+  background: var(--accent-soft);
   display: flex;
   flex-direction: column;
   gap: 4px;
 }
+
+.keep.is-loss { background: var(--danger-soft); }
 
 .keep .label {
   font-family: "Work Sans", sans-serif;
@@ -347,7 +383,7 @@ input:focus-visible {
 .keep .amount {
   font-family: "Fraunces", Georgia, serif;
   font-weight: 600;
-  font-size: 40px;
+  font-size: clamp(40px, 4vw, 46px);
   color: var(--accent-ink);
   line-height: 1.05;
   font-variant-numeric: tabular-nums;

@@ -423,3 +423,27 @@ recording:
   platform and the chart appears.
 
 Both are sorted, live-updating, fully keyboard-reachable, and covered by their own tests.
+
+## A graphic design pass
+
+The single objective gap: the layout was designed mobile-first and never got a real desktop
+treatment — past ~640px it just sat in a narrow column with empty margins on either side,
+same content, just more dead space. Fixed with a `min-width: 760px` breakpoint that widens
+the column and opens up the spacing, rather than reflowing into a different layout — mobile
+is untouched, desktop finally uses the room it has.
+
+A few other deliberate choices:
+- **"You keep" is now a tinted, rounded block**, not just a number under a heavier rule — the
+  one figure this whole app exists to answer gets treated like a real receipt's highlighted
+  total. The tint itself is the profit/loss signal (green vs. rust), readable before you've
+  even read the number.
+- **One small accent mark** — a 14px dash in the accent color, before the eyebrow at the very
+  top of the page. The only purely decorative touch in the whole design, kept to a hairline
+  so it reads as considered rather than decoration for its own sake.
+- The headline now actually grows on wider screens (`clamp(28px, 5vw, 46px)` — it was capped
+  at 38px regardless of how much room there was) and the card shadows have more real presence
+  in both themes, instead of reading as barely-there borders.
+
+Nothing here touches layout structure or interactive behavior, so the existing test suite
+(still 18/19, 1 correctly skipped) was the regression check; visual review was by screenshot,
+in both themes and at both mobile and desktop widths, including the loss-state color.
