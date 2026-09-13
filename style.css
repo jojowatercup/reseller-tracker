@@ -203,6 +203,13 @@ input:focus-visible {
   gap: 14px;
 }
 
+/* A login form reads more naturally stacked than side-by-side, and it
+   sidesteps a real width problem: "At least 6 characters" plus the
+   monospace input font didn't fit in a half-width column. */
+.auth-form .field-grid {
+  grid-template-columns: 1fr;
+}
+
 .field {
   display: flex;
   flex-direction: column;
@@ -239,6 +246,24 @@ input:focus-visible {
   border: 1px solid var(--border);
   border-radius: 10px;
   padding: 10px 12px 10px 26px;
+}
+
+.history-filters {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  padding-bottom: 4px;
+}
+
+.history-filters select {
+  width: 100%;
+  font-family: "Work Sans", sans-serif;
+  font-size: 13.5px;
+  color: var(--text);
+  background: var(--surface-sunken);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 8px 10px;
 }
 
 .platform-note {
@@ -593,13 +618,61 @@ code {
   padding: 1px 5px;
 }
 
+.toast-container {
+  position: fixed;
+  left: 50%;
+  bottom: 20px;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: calc(100% - 32px);
+  max-width: 420px;
+  z-index: 1000;
+  pointer-events: none;
+}
+
+.toast {
+  pointer-events: auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  border-radius: 10px;
+  padding: 12px 16px;
+  font-family: "Work Sans", sans-serif;
+  font-size: 13.5px;
+  line-height: 1.4;
+  color: var(--text);
+}
+
+.toast.is-error {
+  background: var(--danger-soft);
+  border-color: var(--danger);
+}
+
+.toast.is-leaving { opacity: 0; }
+
 @media (max-width: 420px) {
   .field-grid { grid-template-columns: 1fr; }
+  .history-filters { grid-template-columns: 1fr; }
   .history-row { flex-wrap: wrap; }
 }
 
 @media (prefers-reduced-motion: no-preference) {
   .keep .amount { transition: opacity 0.15s ease; }
+
+  .toast {
+    animation: toast-in 0.2s ease;
+  }
+
+  .toast.is-leaving {
+    transition: opacity 0.2s ease;
+  }
+
+  @keyframes toast-in {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
 }
 
 .print-only { display: none; }

@@ -100,7 +100,7 @@
           </div>
           <div class="field">
             <label for="authPassword">Password</label>
-            <input id="authPassword" type="password" required minlength="6" placeholder="At least 6 characters">
+            <input id="authPassword" type="password" required minlength="6" placeholder="6+ characters">
           </div>
         </div>
         <div class="auth-actions">
@@ -157,9 +157,32 @@
         <span class="stat-value" id="historyTotalKeep">$0.00</span>
       </div>
     </div>
+    <div class="history-filters" id="historyFilters" hidden>
+      <div class="field">
+        <label for="historyFilterPlatform">Platform</label>
+        <select id="historyFilterPlatform"><option value="all">All platforms</option></select>
+      </div>
+      <div class="field">
+        <label for="historySortBy">Sort by</label>
+        <select id="historySortBy">
+          <option value="newest">Newest first</option>
+          <option value="oldest">Oldest first</option>
+          <option value="highest">Highest kept</option>
+          <option value="lowest">Lowest kept</option>
+        </select>
+      </div>
+    </div>
     <p class="history-empty" id="historyEmpty">No sales saved yet &mdash; calculate one above, then hit &ldquo;Save this sale to history.&rdquo;</p>
+    <p class="history-empty" id="historyFilterEmpty" hidden>No sales match this filter.</p>
     <div class="history-list" id="historyList"></div>
   </div>
+
+  <!-- No aria-live here on purpose: each toast sets its own role
+       ("alert" or "status") in app.js, which already implies the right
+       live-region behavior. Adding aria-live on this wrapper too would
+       nest one live region inside another, which some screen readers
+       handle inconsistently. -->
+  <div class="toast-container" id="toastContainer"></div>
 </main>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>

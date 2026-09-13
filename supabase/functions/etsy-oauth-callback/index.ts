@@ -80,6 +80,17 @@ Deno.serve(async (req) => {
   // the exchange below succeeds or not.
   await supabaseAdmin.from("oauth_flow_state").delete().eq("state", state);
 
+  // Opportunistic housekeeping: nothing else in this project ever comes
+  // back to delete a row for an *abandoned* attempt (someone who clicked
+  // Connect Etsy, then closed the tab before Etsy redirected them back).
+  // Rather than add a whole separate scheduled job just for that, every
+  // real callback also sweeps out anyone else's leftover rows once
+  // they're old enough to be expired anyway.
+  await supabaseAdmin
+    .from("oauth_flow_state")
+    .delete()
+    .lt("created_at", new Date(Date.now() - 10 * 60 * 1000).toISOString());
+
   // Reject anything more than 10 minutes old. A code_verifier sitting
   // around for that long is more likely abandoned than legitimate.
   const ageMs = Date.now() - new Date(flow.created_at).getTime();

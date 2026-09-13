@@ -36,6 +36,39 @@ Object.entries(PLATFORMS).forEach(([key, p]) => {
 const $ = id => document.getElementById(id);
 const money = n => (n < 0 ? "-$" + Math.abs(n).toFixed(2) : "$" + n.toFixed(2));
 
+// Escapes a value before it goes into innerHTML. The "platform" on a
+// history entry is normally always one of our own fixed platform names —
+// but the sales table doesn't actually enforce that in the database, so
+// someone could insert a row with an arbitrary platform string directly
+// through the API, bypassing this page's own dropdown. Without this,
+// that string would render as real HTML instead of plain text.
+function escapeHtml(value) {
+  const div = document.createElement("div");
+  div.textContent = String(value);
+  return div.innerHTML;
+}
+
+// A small on-page message that appears near the bottom of the screen
+// and fades itself out — used instead of the browser's built-in alert(),
+// which blocks the whole page and looks jarring next to everything else
+// here. role="alert" on an error interrupts a screen reader immediately;
+// role="status" on a success message just gets mentioned when convenient.
+function showToast(message, isError = false) {
+  const toast = document.createElement("div");
+  toast.className = "toast" + (isError ? " is-error" : "");
+  toast.setAttribute("role", isError ? "alert" : "status");
+  toast.textContent = message;
+  $("toastContainer").appendChild(toast);
+
+  setTimeout(() => {
+    toast.classList.add("is-leaving");
+    toast.addEventListener("transitionend", () => toast.remove());
+    // If reduced motion is on, there's no transition to wait for —
+    // remove it directly instead of leaving it stuck on screen.
+    setTimeout(() => toast.remove(), 300);
+  }, isError ? 5000 : 3000);
+}
+
 // ---- Theme toggle (light/dark) ----------------------------------------
 // The CSS already switches automatically based on the OS setting
 // (@media prefers-color-scheme). Setting data-theme="light" or "dark" on
@@ -165,7 +198,17 @@ const isStripeConfigured =
   STRIPE_PAYMENT_LINK &&
   STRIPE_PAYMENT_LINK !== "YOUR_PAYMENT_LINK_URL_HERE";
 
-async function refreshProStatus() {
+// Bumped every time onAuthStateChange fires. If someone signs out and
+// back in as a different account while a slow refreshProStatus() /
+// refreshConnections() call for the *previous* account is still waiting
+// on a database round-trip, that older call checks this before touching
+// the page — so it can never overwrite what the newer sign-in already
+// correctly displayed. Defaults to "whatever generation is current right
+// now" so a direct, ad-hoc call (tests, or future code) is always its
+// own generation and never second-guesses itself.
+let authGeneration = 0;
+
+async function refreshProStatus(forGeneration = authGeneration) {
   const badge = $("planBadge");
   const statusText = $("planStatusText");
   const upgradeBtn = $("proUpgradeBtn");
@@ -196,6 +239,10 @@ async function refreshProStatus() {
     .select("status, current_period_end")
     .maybeSingle();
 
+  // Someone else signed in (or out) while that request was in flight —
+  // whichever call is actually current gets to keep the last word.
+  if (forGeneration !== authGeneration) return;
+
   if (error) {
     // Not fatal — the upgrade link above already works even if we can't
     // read current status yet (e.g. schema-subscriptions.sql hasn't
@@ -222,7 +269,7 @@ async function refreshProStatus() {
   }
 
   currentUserIsPro = isPro;
-  await refreshConnections();
+  await refreshConnections(forGeneration);
 }
 
 // ---- Marketplace connections (Etsy OAuth) ------------------------------
@@ -258,7 +305,7 @@ async function generateCodeChallenge(verifier) {
 // itself uses when exchanging the code — Etsy rejects a mismatch.
 const ETSY_REDIRECT_URI = "https://utaepqledbcvwrjpqvys.supabase.co/functions/v1/etsy-oauth-callback";
 
-async function refreshConnections() {
+async function refreshConnections(forGeneration = authGeneration) {
   const block = $("connectionsBlock");
   if (!currentUserIsPro) {
     block.hidden = true;
@@ -271,6 +318,9 @@ async function refreshConnections() {
     .select("connected_at")
     .eq("platform", "etsy")
     .maybeSingle();
+
+  // Same stale-response guard as refreshProStatus() above.
+  if (forGeneration !== authGeneration) return;
 
   const badge = $("etsyBadge");
   const text = $("etsyStatusText");
@@ -304,7 +354,7 @@ $("connectEtsyBtn").addEventListener("click", async () => {
   });
 
   if (error) {
-    alert("Couldn't start the Etsy connection: " + error.message);
+    showToast("Couldn't start the Etsy connection: " + error.message, true);
     return;
   }
 
@@ -411,7 +461,7 @@ async function addSaleToHistory(entry) {
       fee: entry.fee,
       keep: entry.keep,
     });
-    if (error) { alert("Couldn't save to your account: " + error.message); return false; }
+    if (error) { showToast("Couldn't save to your account: " + error.message, true); return false; }
   } else {
     history.push(entry);
     persistLocalHistory();
@@ -423,7 +473,7 @@ async function addSaleToHistory(entry) {
 async function deleteSaleFromHistory(id) {
   if (currentUser) {
     const { error } = await supabaseClient.from("sales").delete().eq("id", id);
-    if (error) { alert("Couldn't delete: " + error.message); return; }
+    if (error) { showToast("Couldn't delete: " + error.message, true); return; }
   } else {
     history = history.filter(entry => entry.id !== id);
     persistLocalHistory();
@@ -434,7 +484,7 @@ async function deleteSaleFromHistory(id) {
 async function clearAllHistory() {
   if (currentUser) {
     const { error } = await supabaseClient.from("sales").delete().eq("user_id", currentUser.id);
-    if (error) { alert("Couldn't clear: " + error.message); return; }
+    if (error) { showToast("Couldn't clear: " + error.message, true); return; }
   } else {
     history = [];
     persistLocalHistory();
@@ -442,10 +492,37 @@ async function clearAllHistory() {
   await refreshHistory();
 }
 
+// The dropdown's current choices — changing either just re-runs
+// renderHistory() below, entirely in memory, no re-fetch needed.
+let historyFilterPlatform = "all";
+let historySortBy = "newest";
+
+// Filters and sorts a *copy* of history, leaving the real array (and its
+// on-disk/on-server order) untouched — CSV export and the running totals
+// on save still reflect everything, regardless of what's on screen.
+function getVisibleHistory() {
+  // .filter() already hands back a brand-new array, so it's already
+  // safe for .sort() to rearrange in place below without touching the
+  // real, on-disk/on-server ordering in `history` itself.
+  const items = history.filter(entry =>
+    historyFilterPlatform === "all" || entry.platform === historyFilterPlatform
+  );
+  const byDate = (a, b) => new Date(a.date) - new Date(b.date);
+  switch (historySortBy) {
+    case "oldest": items.sort(byDate); break;
+    case "highest": items.sort((a, b) => b.keep - a.keep); break;
+    case "lowest": items.sort((a, b) => a.keep - b.keep); break;
+    default: items.sort((a, b) => byDate(b, a)); break; // "newest"
+  }
+  return items;
+}
+
 function renderHistory() {
   const listEl = $("historyList");
   const emptyEl = $("historyEmpty");
+  const filterEmptyEl = $("historyFilterEmpty");
   const summaryEl = $("historySummary");
+  const filtersEl = $("historyFilters");
   const clearBtn = $("clearHistoryBtn");
   const exportBtn = $("exportCsvBtn");
 
@@ -455,19 +532,32 @@ function renderHistory() {
 
   if (history.length === 0) {
     emptyEl.hidden = false;
+    filterEmptyEl.hidden = true;
     summaryEl.hidden = true;
+    filtersEl.hidden = true;
     return;
   }
 
   emptyEl.hidden = true;
+  filtersEl.hidden = false;
   summaryEl.hidden = false;
 
-  const totalKeep = history.reduce((sum, entry) => sum + entry.keep, 0);
-  $("historyCount").textContent = history.length;
+  const visible = getVisibleHistory();
+
+  // The summary reflects whatever's currently filtered — "how much did I
+  // make on Depop" is a more useful answer than always repeating the
+  // grand total once a platform filter is applied.
+  const totalKeep = visible.reduce((sum, entry) => sum + entry.keep, 0);
+  $("historyCount").textContent = visible.length;
   $("historyTotalKeep").textContent = money(totalKeep);
 
-  // Show newest first without changing the order saved on disk.
-  [...history].reverse().forEach(entry => {
+  if (visible.length === 0) {
+    filterEmptyEl.hidden = false;
+    return;
+  }
+  filterEmptyEl.hidden = true;
+
+  visible.forEach(entry => {
     const platformName = PLATFORMS[entry.platform]?.name ?? entry.platform;
     const dateLabel = new Date(entry.date).toLocaleDateString(undefined, {
       month: "short", day: "numeric", year: "numeric",
@@ -477,18 +567,37 @@ function renderHistory() {
     row.className = "history-row";
     row.innerHTML = `
       <div class="history-main">
-        <span class="history-platform">${platformName}</span>
+        <span class="history-platform">${escapeHtml(platformName)}</span>
         <span class="history-date">${dateLabel}</span>
       </div>
       <div class="history-amounts">
         <span class="history-price">${money(entry.price)} sale</span>
         <span class="history-keep">${money(entry.keep)} kept</span>
       </div>
-      <button class="history-delete" type="button" data-id="${entry.id}" aria-label="Delete this entry">&times;</button>
+      <button class="history-delete" type="button" data-id="${escapeHtml(entry.id)}" aria-label="Delete this entry">&times;</button>
     `;
     listEl.appendChild(row);
   });
 }
+
+// Same platform list the calculator uses, so the filter never drifts out
+// of sync with what a saved entry could actually be.
+Object.entries(PLATFORMS).forEach(([key, p]) => {
+  const option = document.createElement("option");
+  option.value = key;
+  option.textContent = p.name;
+  $("historyFilterPlatform").appendChild(option);
+});
+
+$("historyFilterPlatform").addEventListener("change", e => {
+  historyFilterPlatform = e.target.value;
+  renderHistory();
+});
+
+$("historySortBy").addEventListener("change", e => {
+  historySortBy = e.target.value;
+  renderHistory();
+});
 
 const saveSaleBtn = $("saveSaleBtn");
 let saveResetTimer = null;
@@ -547,7 +656,13 @@ $("clearHistoryBtn").addEventListener("click", async () => {
 // CSV field — without this, a stray comma would silently split one column
 // into two when the file is opened in a spreadsheet.
 function csvField(value) {
-  const s = String(value);
+  let s = String(value);
+  // Same underlying gap as escapeHtml() above (platform isn't actually
+  // restricted to our own list in the database): Excel/Sheets treats a
+  // cell starting with =, +, -, or @ as a formula to run, not text to
+  // display. A leading apostrophe tells it "literally this," without
+  // changing what's visibly shown.
+  if (/^[=+\-@]/.test(s)) s = "'" + s;
   return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
 }
 
@@ -667,13 +782,16 @@ if (!isSupabaseConfigured || !supabaseClient) {
   // Fires immediately with whatever session already exists (e.g. after a
   // page reload), and again every time someone signs in or out.
   supabaseClient.auth.onAuthStateChange((_event, session) => {
+    authGeneration++;
+    const thisGeneration = authGeneration;
+
     currentUser = session ? session.user : null;
     $("authSignedOut").hidden = !!currentUser;
     $("authSignedIn").hidden = !currentUser;
     if (currentUser) {
       $("authEmailLabel").textContent = currentUser.email;
       authMessage.hidden = true;
-      refreshProStatus();
+      refreshProStatus(thisGeneration);
     }
     refreshHistory();
   });

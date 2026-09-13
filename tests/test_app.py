@@ -200,6 +200,34 @@ def test_local_history_save_reload_delete_clear(page, context):
     assert page.is_visible("#historyEmpty")
 
 
+def test_malicious_platform_value_does_not_execute_as_html(page, context):
+    """Regression test: schema.sql never actually restricts the "platform"
+    column to our own fixed list — someone could set it to anything via
+    a direct API call, bypassing the UI entirely. renderHistory() used to
+    interpolate it into innerHTML unescaped, which would have run it as
+    real HTML/script instead of displaying it as plain text."""
+    page.goto(INDEX_URL, wait_until="domcontentloaded")
+    page.wait_for_selector("#saveSaleBtn")
+
+    page.evaluate("""
+        () => {
+            history.push({
+                id: 'test-xss-entry',
+                date: new Date().toISOString(),
+                platform: '<img src=x onerror="window.__xss = true">',
+                price: 10, shipCharged: 0, shipCost: 0, itemCost: 0, fee: 0, keep: 10,
+            });
+            renderHistory();
+        }
+    """)
+    page.wait_for_timeout(150)
+
+    assert page.evaluate("window.__xss") is not True, "the payload must never actually execute"
+    assert page.locator(".history-platform img").count() == 0, "no real <img> element should exist"
+    shown_text = page.inner_text(".history-platform")
+    assert "<img" in shown_text, "the tag should appear as literal visible text, not be swallowed"
+
+
 def test_csv_export(page, context):
     page.goto(INDEX_URL, wait_until="domcontentloaded")
     assert page.is_disabled("#exportCsvBtn"), "export should be disabled with nothing saved yet"
@@ -224,6 +252,28 @@ def test_csv_export(page, context):
     assert "Etsy" in lines[2], "the sale saved second should come second"
 
 
+def test_csv_export_defuses_formula_injection(page, context):
+    """Regression test: same root cause as the XSS test above — since
+    "platform" isn't actually restricted to our own list in the database,
+    a value like "=cmd|...'" would be interpreted as a live formula by
+    Excel/Sheets, not displayed as text, if exported as-is."""
+    page.goto(INDEX_URL, wait_until="domcontentloaded")
+    page.evaluate("""
+        () => {
+            history.push({
+                id: 'test-csv-injection',
+                date: new Date().toISOString(),
+                platform: '=1+1',
+                price: 10, shipCharged: 0, shipCost: 0, itemCost: 0, fee: 0, keep: 10,
+            });
+        }
+    """)
+    with page.expect_download() as dl_info:
+        page.evaluate("() => { renderHistory(); document.getElementById('exportCsvBtn').click(); }")
+    raw = pathlib.Path(dl_info.value.path()).read_bytes().decode("utf-8")
+    assert "'=1+1" in raw, "a leading apostrophe should defuse the formula while keeping the value readable"
+
+
 def test_failed_cloud_save_does_not_show_false_success(page, context):
     """Regression test: a failed save used to still flash "Saved ✓" and
     stay disabled, because the click handler didn't check the outcome."""
@@ -238,8 +288,6 @@ def test_failed_cloud_save_does_not_show_false_success(page, context):
             supabaseClient = {
                 from: () => ({ insert: async () => ({ error: { message: 'simulated failure' } }) }),
             };
-            window.__alerts = [];
-            window.alert = (msg) => window.__alerts.push(msg);
         }
     """)
     page.click("#saveSaleBtn")
@@ -248,7 +296,7 @@ def test_failed_cloud_save_does_not_show_false_success(page, context):
     assert page.inner_text("#saveSaleBtn") == "Save this sale to history", \
         "must not show 'Saved' text when the save actually failed"
     assert not page.is_disabled("#saveSaleBtn"), "button should re-enable after a failure, not stay stuck"
-    assert page.evaluate("window.__alerts").__len__() == 1
+    assert page.locator(".toast.is-error").count() == 1, "a failure should show one error toast"
 
 
 def test_signup_without_session_prompts_email_confirmation(page, context):
@@ -310,26 +358,87 @@ def test_pro_status_configured_shows_working_upgrade_link(page, context):
     """The mirror image of the test above: once stripe-config.js holds a
     real Payment Link (as it now does — verified end-to-end with a real
     Stripe test-mode checkout that correctly flipped a test account to
-    Pro), a freshly signed-up account that hasn't paid should see a
+    Pro), a signed-in account with no subscription row yet should see a
     working Upgrade button, not the "not configured" message. Skips if
-    run against a fresh clone that hasn't set up Stripe yet."""
+    run against a fresh clone that hasn't set up Stripe yet.
+
+    Faked, not a real signup: this used to click #authSignUpBtn for real,
+    which created a genuine new account in the live project on every
+    single test run — exactly what this file is supposed to avoid (see
+    tests/README.md). Faking currentUser and the subscriptions lookup,
+    then calling refreshProStatus() directly, checks the same UI logic
+    without touching the real database at all."""
     page.goto(INDEX_URL, wait_until="domcontentloaded")
     page.wait_for_selector("#authCard")
     if not page.evaluate("() => isStripeConfigured"):
         raise Skipped("stripe-config.js doesn't hold a real Payment Link right now")
 
-    page.wait_for_selector("#authForm")
-    email = f"realcut.test.{int(time.time())}@example.com"
-    page.fill("#authEmail", email)
-    page.fill("#authPassword", "TestPassword123!")
-    page.click("#authSignUpBtn")
-    page.wait_for_timeout(2000)
+    page.evaluate("""
+        () => {
+            currentUser = { id: 'fake-user-for-test', email: 'fake@example.com' };
+            document.getElementById('authSignedOut').hidden = true;
+            document.getElementById('authSignedIn').hidden = false;
+            supabaseClient.from = () => ({
+                select: () => ({ maybeSingle: async () => ({ data: null, error: null }) }),
+            });
+            refreshProStatus();
+        }
+    """)
+    page.wait_for_timeout(300)
 
     assert page.is_visible("#proUpgradeBtn"), "a never-paid account should see a working Upgrade button"
     assert not page.is_visible("#proNotConfigured")
     href = page.get_attribute("#proUpgradeBtn", "href")
-    assert "client_reference_id=" in href, "the link must carry this account's id for the webhook to use"
+    assert "client_reference_id=fake-user-for-test" in href, "the link must carry this account's id for the webhook to use"
     assert page.evaluate("document.getElementById('planBadge').textContent") == "Free plan"
+
+
+def test_stale_pro_status_response_cannot_overwrite_a_newer_one(page, context):
+    """Regression test: sign in as A, whose subscription lookup is slow
+    and still in flight, then switch to B, whose (faster) lookup resolves
+    first. When A's old response finally does arrive, it used to still
+    overwrite the page with A's data even though B is who's actually
+    signed in now."""
+    page.goto(INDEX_URL, wait_until="domcontentloaded")
+    page.wait_for_selector("#authCard")
+    if not page.evaluate("() => isStripeConfigured"):
+        raise Skipped("stripe-config.js doesn't hold a real Payment Link right now")
+
+    page.evaluate("""
+        async () => {
+            document.getElementById('authSignedOut').hidden = true;
+            document.getElementById('authSignedIn').hidden = false;
+
+            // User A signs in; their lookup is rigged to hang until we
+            // manually resolve it below.
+            authGeneration = 5;
+            currentUser = { id: 'user-a' };
+            let resolveA;
+            supabaseClient.from = () => ({
+                select: () => ({ maybeSingle: () => new Promise(r => { resolveA = r; }) }),
+            });
+            const staleCall = refreshProStatus(5);
+
+            // User B signs in next (a newer generation) before A's
+            // lookup has resolved, and B's own lookup finishes fast.
+            authGeneration = 6;
+            currentUser = { id: 'user-b' };
+            supabaseClient.from = () => ({
+                select: () => ({ maybeSingle: async () => ({ data: null, error: null }) }),
+            });
+            await refreshProStatus(6);
+
+            // *Now* A's old lookup finally resolves, claiming Pro.
+            resolveA({ data: { status: 'active', current_period_end: null }, error: null });
+            await staleCall;
+        }
+    """)
+    page.wait_for_timeout(150)
+
+    href = page.get_attribute("#proUpgradeBtn", "href")
+    badge = page.evaluate("document.getElementById('planBadge').textContent")
+    assert "user-b" in href, "should still point at B, not get overwritten by A's stale response"
+    assert badge == "Free plan", "B's correct status shouldn't be overwritten by A's stale 'active' response"
 
 
 TESTS = [
@@ -341,11 +450,14 @@ TESTS = [
     ("a loss flips \"You keep\" to red", test_loss_flips_to_red),
     ("shipping-cost insight shows and hides correctly", test_shipping_insight_shows_and_hides),
     ("local history: save, reload, delete, clear", test_local_history_save_reload_delete_clear),
+    ("a malicious platform value can't execute as HTML", test_malicious_platform_value_does_not_execute_as_html),
     ("CSV export: header, order, and values", test_csv_export),
+    ("CSV export defuses formula injection", test_csv_export_defuses_formula_injection),
     ("failed cloud save doesn't show a false \"Saved\"", test_failed_cloud_save_does_not_show_false_success),
     ("sign-up with no session prompts email confirmation", test_signup_without_session_prompts_email_confirmation),
     ("Pro status: not-configured fallback", test_pro_status_not_configured_fallback),
     ("Pro status: configured shows a working upgrade link", test_pro_status_configured_shows_working_upgrade_link),
+    ("Pro status: a stale response can't overwrite a newer one", test_stale_pro_status_response_cannot_overwrite_a_newer_one),
 ]
 
 

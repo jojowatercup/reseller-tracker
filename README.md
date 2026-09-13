@@ -361,3 +361,46 @@ OAuth attempt from an app that isn't yet in one of the two approved tiers above.
 fix on our end — this app (`reseller-tracker`) is correctly registered as a Personal App and
 sitting in Etsy's review queue. Once that clears, the *next* step is requesting the Commercial
 Access upgrade on top, before a real end-to-end connection can be tested.
+
+## UI additions, plus a full debugging pass
+
+**New UI:**
+- **Toast notifications** replace every `alert()` popup in the app (a failed save, a failed
+  Etsy connect) with a small on-page message that fades itself out — matches the rest of the
+  design instead of a jarring browser dialog.
+- **Sort & filter** on Sales History — a platform dropdown and a sort-by (newest/oldest/
+  highest/lowest kept). The running totals shown reflect whatever's currently filtered, so
+  "how much did I make on Depop" is a real, direct answer.
+- Fixed a real clipped-text bug found while reviewing: the password field's placeholder
+  didn't fit its column. Stacked the Account form's fields into one column (also just more
+  conventional for a login form) and shortened the placeholder.
+
+**A full code-review debugging pass** (`/code-review high` against the whole project, every
+file, not just the day's diff) turned up seven real findings, all fixed:
+- **Stored XSS**: `sales.platform` has no database constraint restricting it to this app's own
+  platform list, so a value inserted directly through the API (bypassing the UI) rendered as
+  live HTML in the history list, since `renderHistory()` interpolated it into `innerHTML`
+  unescaped. Added an `escapeHtml()` helper.
+- **CSV formula injection** — same root cause: a platform value starting with `=`, `+`, `-`,
+  or `@` would be run as a live formula by Excel/Sheets on export, not shown as text. A
+  leading apostrophe defuses it without changing what's visibly displayed.
+- **A committed test was silently creating real accounts**: `test_pro_status_configured_...`
+  used to call the real sign-up button on every single test run, against the live Supabase
+  project — exactly what `tests/README.md` says this file shouldn't do. Rewritten to fake the
+  sign-in state instead, like the other tests already do.
+- **A stale-response race condition**: sign in as A (slow subscription lookup), switch to B
+  (fast lookup) before A's resolves, and A's old response used to still land and overwrite
+  B's correctly-displayed status. Added a generation counter — `refreshProStatus()` /
+  `refreshConnections()` now check it's still the current one before touching the page.
+- **`oauth_flow_state` rows never got cleaned up** for an abandoned Etsy connection attempt
+  (someone who closed the tab before Etsy redirected back) — only a completed attempt deleted
+  its own row. The callback function now also opportunistically sweeps out anyone else's
+  expired rows whenever it runs, rather than needing a whole separate scheduled job.
+- Two small correctness/accessibility nits: a redundant array copy in the history
+  filter/sort logic, and a nested `aria-live` region (the toast container had its own, on top
+  of each toast's own `role="alert"`/`"status"`) that could make some screen readers announce
+  errors inconsistently.
+
+Every fix has its own regression test now (`tests/test_app.py`, 15/16 — 1 correctly skipped).
+The two security fixes and the race-condition fix were each verified by temporarily reverting
+the fix and confirming the test actually fails, not just reasoned through.
