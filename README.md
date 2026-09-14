@@ -447,3 +447,12 @@ A few other deliberate choices:
 Nothing here touches layout structure or interactive behavior, so the existing test suite
 (still 18/19, 1 correctly skipped) was the regression check; visual review was by screenshot,
 in both themes and at both mobile and desktop widths, including the loss-state color.
+
+## Fixing "it all blends together"
+
+The actual cause: `--bg` (the page) and `--surface` (white cards) were nearly the same
+color — `#F5F8F4` vs `#FFFFFF` in light mode — so cards had almost no separation from the
+page itself beyond a faint border and a soft shadow. Deepened `--bg` into a real sage/moss
+tone (`#E1E9DD` light, `#0A0D08` dark) well below `--surface`, and darkened `--border` /
+`--border-strong` to stay visible against it. Cards now read as objects sitting on the page,
+not as part of one flat surface — confirmed by screenshot in both themes.

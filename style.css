@@ -1,11 +1,16 @@
 :root {
-  --bg: #F5F8F4;
+  /* --bg sits well below --surface on purpose now — the two used to be
+     nearly the same tone (#F5F8F4 vs #FFFFFF), so cards had almost no
+     separation from the page itself. This deepens the page plane into a
+     real sage/moss tone specifically so white cards read as objects
+     sitting on top of it, not as part of one flat surface. */
+  --bg: #E1E9DD;
   --surface: #FFFFFF;
   --surface-sunken: #EEF3EC;
   --text: #182018;
   --text-muted: #5B6A5D;
-  --border: #DCE5DB;
-  --border-strong: #C3D0C1;
+  --border: #C9D6C5;
+  --border-strong: #AFC2AA;
   --accent: #1E7A4C;
   --accent-ink: #0F4A2C;
   --accent-soft: #E3F1E7;
@@ -17,13 +22,15 @@
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #10140F;
+    /* Same reasoning as the light --bg change: pushed further from
+       --surface so cards read as elevated, not just part of the page. */
+    --bg: #0A0D08;
     --surface: #171D16;
     --surface-sunken: #1E251C;
     --text: #ECF1EA;
     --text-muted: #98A899;
-    --border: #2A342A;
-    --border-strong: #3A4838;
+    --border: #303C2D;
+    --border-strong: #42533D;
     --accent: #4FBE85;
     --accent-ink: #C9EFD8;
     --accent-soft: #1D3327;
@@ -35,13 +42,13 @@
 }
 
 :root[data-theme="dark"] {
-  --bg: #10140F;
+  --bg: #0A0D08;
   --surface: #171D16;
   --surface-sunken: #1E251C;
   --text: #ECF1EA;
   --text-muted: #98A899;
-  --border: #2A342A;
-  --border-strong: #3A4838;
+  --border: #303C2D;
+  --border-strong: #42533D;
   --accent: #4FBE85;
   --accent-ink: #C9EFD8;
   --accent-soft: #1D3327;
